@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package tokobangunan.order.v1;
+
+option go_package = "github.com/example/distributed-toko-bangunan/proto/order/v1;orderv1";
+
+service OrderInternalService {
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+}
+
+message RequestMetadata {
+  string correlation_id = 1;
+  string causation_id = 2;
+}
+
+message GetOrderRequest {
+  RequestMetadata metadata = 1;
+  string order_id = 2;
+}
+
+message OrderItem {
+  string product_id = 1;
+  string product_name = 2;
+  string unit = 3;
+  double quantity = 4;
+  int64 unit_price = 5;
+  int64 line_total = 6;
+}
+
+message GetOrderResponse {
+  string order_id = 1;
+  string status = 2;
+  int64 total_amount = 3;
+  repeated OrderItem items = 4;
+}
+

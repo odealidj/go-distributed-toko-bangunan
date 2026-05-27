@@ -1,0 +1,92 @@
+version: 1
+rules:
+  - id: BR-ORDER-001
+    title: Order wajib memiliki minimal satu item
+    description: Order request harus berisi satu atau lebih order item.
+    applies_to:
+      - order-service
+    acceptance_criteria:
+      - Jika item list kosong, ketika client membuat order, maka API mengembalikan validation error.
+
+  - id: BR-ORDER-002
+    title: Product snapshot disimpan di order item
+    description: Order item harus menyimpan product name, unit, dan price snapshot yang dikembalikan oleh catalog inventory validation.
+    applies_to:
+      - order-service
+      - catalog-inventory-service
+    acceptance_criteria:
+      - Jika product valid, ketika order dibuat, maka order item menyimpan product_name, unit, unit_price, dan line_total.
+
+  - id: BR-ORDER-003
+    title: Stock harus di-reserve sebelum payment
+    description: Payment tidak boleh dibuat sebelum semua order item berhasil di-reserve.
+    applies_to:
+      - order-service
+      - catalog-inventory-service
+      - payment-service
+    acceptance_criteria:
+      - Jika stock cukup, ketika checkout dimulai, maka ReserveStock dipanggil sebelum CreatePayment.
+      - Jika stock insufficient, ketika checkout dimulai, maka payment tidak dibuat.
+
+  - id: BR-INVENTORY-001
+    title: Perhitungan available stock
+    description: Available stock sama dengan on_hand dikurangi reserved quantity.
+    applies_to:
+      - catalog-inventory-service
+    formula: available_qty = on_hand_qty - reserved_qty
+    acceptance_criteria:
+      - Jika on_hand 10 dan reserved 3, ketika stock diquery, maka available stock adalah 7.
+
+  - id: BR-INVENTORY-002
+    title: Reserve stock secara atomic per product
+    description: Stock reservation harus gagal jika ada item yang available quantity-nya tidak cukup.
+    applies_to:
+      - catalog-inventory-service
+    acceptance_criteria:
+      - Jika ada satu item unavailable dalam order, ketika ReserveStock dipanggil, maka tidak ada item yang di-reserve untuk order tersebut.
+
+  - id: BR-INVENTORY-003
+    title: Release stock harus idempotent
+    description: Release reservation yang sudah released tidak boleh menambah available stock lebih dari sekali.
+    applies_to:
+      - catalog-inventory-service
+    acceptance_criteria:
+      - Jika reservation sudah released, ketika duplicate OrderCancelled dikonsumsi, maka reserved_qty tidak berubah.
+
+  - id: BR-INVENTORY-004
+    title: Commit stock harus idempotent
+    description: Commit reservation yang sudah committed tidak boleh mengurangi on-hand stock lebih dari sekali.
+    applies_to:
+      - catalog-inventory-service
+    acceptance_criteria:
+      - Jika reservation sudah committed, ketika duplicate OrderConfirmed dikonsumsi, maka on_hand_qty tidak berubah.
+
+  - id: BR-PAYMENT-001
+    title: Payment dapat dipaksa untuk demo
+    description: Payment service harus mendukung success atau failure yang deterministic untuk demo scenario.
+    applies_to:
+      - payment-service
+    acceptance_criteria:
+      - Jika payment_mode SUCCESS, ketika payment diproses, maka PaymentSucceeded dipublish.
+      - Jika payment_mode FAILURE, ketika payment diproses, maka PaymentFailed dipublish.
+
+  - id: BR-SAGA-001
+    title: Payment failure memicu compensation
+    description: Jika payment gagal setelah stock reservation, order harus dibatalkan dan stock harus direlease.
+    applies_to:
+      - order-service
+      - catalog-inventory-service
+      - payment-service
+    acceptance_criteria:
+      - Jika stock sudah reserved, ketika PaymentFailed dikonsumsi, maka OrderCancelled dipublish.
+      - Jika OrderCancelled dikonsumsi oleh inventory, maka reservation status menjadi RELEASED.
+
+  - id: BR-IDEMPOTENCY-001
+    title: Event consumer harus idempotent
+    description: Setiap Kafka consumer harus menyimpan event_id yang sudah diproses sebelum atau dalam transaction yang sama dengan state mutation.
+    applies_to:
+      - order-service
+      - catalog-inventory-service
+      - payment-service
+    acceptance_criteria:
+      - Jika event_id duplicate, ketika event dikonsumsi dua kali, maka hanya satu state mutation yang terjadi.

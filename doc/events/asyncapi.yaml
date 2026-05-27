@@ -1,0 +1,305 @@
+asyncapi: 2.6.0
+info:
+  title: Kontrak Event Mini Toko Bangunan
+  version: 1.0.0
+  description: Kontrak event Kafka untuk checkout saga dan demo distributed transaction.
+servers:
+  local:
+    url: localhost:9092
+    protocol: kafka
+defaultContentType: application/json
+channels:
+  order.events:
+    description: Event yang dipublish oleh order-service.
+    publish:
+      message:
+        oneOf:
+          - $ref: '#/components/messages/OrderCreated'
+          - $ref: '#/components/messages/OrderConfirmed'
+          - $ref: '#/components/messages/OrderCancelled'
+          - $ref: '#/components/messages/OrderRejected'
+  inventory.events:
+    description: Event yang dipublish oleh catalog-inventory-service.
+    publish:
+      message:
+        oneOf:
+          - $ref: '#/components/messages/StockReserved'
+          - $ref: '#/components/messages/StockReservationFailed'
+          - $ref: '#/components/messages/StockCommitted'
+          - $ref: '#/components/messages/StockReleased'
+  payment.events:
+    description: Event yang dipublish oleh payment-service.
+    publish:
+      message:
+        oneOf:
+          - $ref: '#/components/messages/PaymentCreated'
+          - $ref: '#/components/messages/PaymentSucceeded'
+          - $ref: '#/components/messages/PaymentFailed'
+          - $ref: '#/components/messages/PaymentCancelled'
+components:
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      title: Order dibuat
+      payload:
+        $ref: '#/components/schemas/OrderCreatedPayload'
+    OrderConfirmed:
+      name: OrderConfirmed
+      title: Order dikonfirmasi
+      payload:
+        $ref: '#/components/schemas/OrderStatusPayload'
+    OrderCancelled:
+      name: OrderCancelled
+      title: Order dibatalkan
+      payload:
+        $ref: '#/components/schemas/OrderStatusPayload'
+    OrderRejected:
+      name: OrderRejected
+      title: Order ditolak
+      payload:
+        $ref: '#/components/schemas/OrderStatusPayload'
+    StockReserved:
+      name: StockReserved
+      title: Stock di-reserve
+      payload:
+        $ref: '#/components/schemas/StockReservationPayload'
+    StockReservationFailed:
+      name: StockReservationFailed
+      title: Stock reservation gagal
+      payload:
+        $ref: '#/components/schemas/StockReservationFailedPayload'
+    StockCommitted:
+      name: StockCommitted
+      title: Stock dicommit
+      payload:
+        $ref: '#/components/schemas/StockReservationPayload'
+    StockReleased:
+      name: StockReleased
+      title: Stock direlease
+      payload:
+        $ref: '#/components/schemas/StockReservationPayload'
+    PaymentCreated:
+      name: PaymentCreated
+      title: Payment dibuat
+      payload:
+        $ref: '#/components/schemas/PaymentPayload'
+    PaymentSucceeded:
+      name: PaymentSucceeded
+      title: Payment sukses
+      payload:
+        $ref: '#/components/schemas/PaymentPayload'
+    PaymentFailed:
+      name: PaymentFailed
+      title: Payment gagal
+      payload:
+        $ref: '#/components/schemas/PaymentFailedPayload'
+    PaymentCancelled:
+      name: PaymentCancelled
+      title: Payment dibatalkan
+      payload:
+        $ref: '#/components/schemas/PaymentPayload'
+  schemas:
+    EventEnvelope:
+      type: object
+      required:
+        - event_id
+        - event_type
+        - aggregate_id
+        - aggregate_type
+        - occurred_at
+        - correlation_id
+        - payload
+      properties:
+        event_id:
+          type: string
+        event_type:
+          type: string
+        aggregate_id:
+          type: string
+          description: Biasanya order_id untuk event terkait checkout.
+        aggregate_type:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+        causation_id:
+          type: string
+        trace_id:
+          type: string
+          description: Optional copy dari OpenTelemetry trace ID untuk audit/search. Trace propagation menggunakan Kafka headers.
+        payload:
+          type: object
+    KafkaHeaders:
+      type: object
+      required:
+        - traceparent
+        - x-correlation-id
+        - x-causation-id
+        - x-event-id
+        - x-event-type
+      properties:
+        traceparent:
+          type: string
+          description: W3C Trace Context traceparent header.
+        tracestate:
+          type: string
+          description: Optional W3C Trace Context tracestate header.
+        x-correlation-id:
+          type: string
+        x-causation-id:
+          type: string
+        x-event-id:
+          type: string
+        x-event-type:
+          type: string
+    OrderItem:
+      type: object
+      required:
+        - product_id
+        - product_name
+        - unit
+        - quantity
+        - unit_price
+        - line_total
+      properties:
+        product_id:
+          type: string
+        product_name:
+          type: string
+        unit:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: integer
+          format: int64
+        line_total:
+          type: integer
+          format: int64
+    OrderCreatedPayload:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelope'
+        - type: object
+          properties:
+            payload:
+              type: object
+              required:
+                - order_id
+                - status
+                - total_amount
+                - items
+              properties:
+                order_id:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - PENDING
+                total_amount:
+                  type: integer
+                  format: int64
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderItem'
+    OrderStatusPayload:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelope'
+        - type: object
+          properties:
+            payload:
+              type: object
+              required:
+                - order_id
+                - status
+              properties:
+                order_id:
+                  type: string
+                status:
+                  type: string
+                reason:
+                  type: string
+    StockReservationPayload:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelope'
+        - type: object
+          properties:
+            payload:
+              type: object
+              required:
+                - order_id
+                - reservation_id
+                - status
+              properties:
+                order_id:
+                  type: string
+                reservation_id:
+                  type: string
+                status:
+                  type: string
+    StockReservationFailedPayload:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelope'
+        - type: object
+          properties:
+            payload:
+              type: object
+              required:
+                - order_id
+                - reason
+              properties:
+                order_id:
+                  type: string
+                reason:
+                  type: string
+    PaymentPayload:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelope'
+        - type: object
+          properties:
+            payload:
+              type: object
+              required:
+                - payment_id
+                - order_id
+                - amount
+                - status
+              properties:
+                payment_id:
+                  type: string
+                order_id:
+                  type: string
+                amount:
+                  type: integer
+                  format: int64
+                status:
+                  type: string
+    PaymentFailedPayload:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelope'
+        - type: object
+          properties:
+            payload:
+              type: object
+              required:
+                - payment_id
+                - order_id
+                - amount
+                - status
+                - reason
+              properties:
+                payment_id:
+                  type: string
+                order_id:
+                  type: string
+                amount:
+                  type: integer
+                  format: int64
+                status:
+                  type: string
+                  enum:
+                    - FAILED
+                reason:
+                  type: string

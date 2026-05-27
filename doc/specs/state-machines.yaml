@@ -1,0 +1,95 @@
+version: 1
+
+order_status:
+  initial: PENDING
+  terminal:
+    - CONFIRMED
+    - CANCELLED
+    - REJECTED
+  states:
+    - PENDING
+    - STOCK_RESERVED
+    - WAITING_PAYMENT
+    - CONFIRMED
+    - CANCELLED
+    - REJECTED
+  transitions:
+    - from: PENDING
+      event: StockReserved
+      to: STOCK_RESERVED
+    - from: PENDING
+      event: StockReservationFailed
+      to: REJECTED
+    - from: STOCK_RESERVED
+      event: PaymentCreated
+      to: WAITING_PAYMENT
+    - from: WAITING_PAYMENT
+      event: PaymentSucceeded
+      to: CONFIRMED
+    - from: WAITING_PAYMENT
+      event: PaymentFailed
+      to: CANCELLED
+    - from: STOCK_RESERVED
+      event: CancelRequested
+      to: CANCELLED
+
+stock_reservation_status:
+  initial: RESERVED
+  terminal:
+    - COMMITTED
+    - RELEASED
+    - FAILED
+  states:
+    - RESERVED
+    - COMMITTED
+    - RELEASED
+    - FAILED
+  transitions:
+    - from: RESERVED
+      event: OrderConfirmed
+      to: COMMITTED
+    - from: RESERVED
+      event: OrderCancelled
+      to: RELEASED
+    - from: RESERVED
+      event: ReservationExpired
+      to: RELEASED
+
+payment_status:
+  initial: PENDING
+  terminal:
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+  states:
+    - PENDING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+  transitions:
+    - from: PENDING
+      event: PaymentSucceeded
+      to: SUCCEEDED
+    - from: PENDING
+      event: PaymentFailed
+      to: FAILED
+    - from: PENDING
+      event: OrderCancelled
+      to: CANCELLED
+
+saga_status:
+  initial: STARTED
+  terminal:
+    - COMPLETED
+    - COMPENSATED
+    - FAILED_REQUIRES_MANUAL_REPAIR
+  states:
+    - STARTED
+    - PRODUCT_VALIDATED
+    - STOCK_RESERVED
+    - PAYMENT_CREATED
+    - COMPLETED
+    - COMPENSATING
+    - COMPENSATED
+    - FAILED_REQUIRES_MANUAL_REPAIR
+

@@ -1,0 +1,219 @@
+version: 1
+system: mini-toko-bangunan
+description: Spesifikasi service untuk demo microservices dengan 3 service.
+implementation_target:
+  language: Go
+  architecture: Hexagonal Architecture
+  source_of_truth: PostgreSQL per service
+  cache: Redis per service namespace
+
+services:
+  - name: order-service
+    type: domain-service
+    responsibility:
+      - Memiliki order lifecycle.
+      - Mengekspos checkout dan order REST API.
+      - Berperan sebagai checkout Saga orchestrator.
+      - Menyimpan data order, order item, saga, outbox, dan inbox.
+      - Mempublish order domain event.
+      - Mengonsumsi payment result event.
+    owned_entities:
+      - orders
+      - order_items
+      - saga_instances
+      - saga_steps
+      - outbox_events
+      - inbox_events
+    cache:
+      provider: Redis
+      namespace: order-service
+      usage:
+        - Short-lived order detail read cache.
+        - Optional POST /orders idempotency lock.
+        - Optional Saga processing lock per order_id.
+      forbidden_usage:
+        - Durable order state.
+        - Durable saga state.
+        - Outbox/inbox source of truth.
+    exposes:
+      rest:
+        - method: POST
+          path: /orders
+          purpose: Membuat order dan memulai checkout saga.
+        - method: GET
+          path: /orders/{order_id}
+          purpose: Mengambil detail dan status order.
+        - method: GET
+          path: /orders
+          purpose: Menampilkan daftar order untuk demo/admin view.
+        - method: POST
+          path: /orders/{order_id}/cancel
+          purpose: Membatalkan order jika status saat ini mengizinkan cancellation.
+    calls_grpc:
+      - service: catalog-inventory-service
+        methods:
+          - ValidateProducts
+          - ReserveStock
+      - service: payment-service
+        methods:
+          - CreatePayment
+          - GetPaymentStatus
+    consumes_events:
+      - topic: payment.events
+        event_types:
+          - PaymentCreated
+          - PaymentSucceeded
+          - PaymentFailed
+      - topic: inventory.events
+        event_types:
+          - StockReserved
+          - StockReservationFailed
+    publishes_events:
+      - topic: order.events
+        event_types:
+          - OrderCreated
+          - OrderConfirmed
+          - OrderCancelled
+          - OrderRejected
+
+  - name: catalog-inventory-service
+    type: domain-service
+    responsibility:
+      - Memiliki product catalog.
+      - Memiliki stock dan stock reservation.
+      - Memvalidasi product snapshot untuk checkout.
+      - Melakukan reserve, release, dan commit stock.
+      - Mempublish inventory domain event.
+    owned_entities:
+      - categories
+      - products
+      - inventories
+      - stock_reservations
+      - stock_movements
+      - outbox_events
+      - inbox_events
+    cache:
+      provider: Redis
+      namespace: catalog-inventory-service
+      usage:
+        - Product detail cache.
+        - Product list cache.
+        - Category cache.
+      forbidden_usage:
+        - Checkout stock correctness.
+        - Durable inventory state.
+        - Stock reservation state.
+    exposes:
+      rest:
+        - method: GET
+          path: /products
+          purpose: Menampilkan daftar product aktif.
+        - method: GET
+          path: /products/{product_id}
+          purpose: Mengambil detail product.
+      grpc:
+        - ValidateProducts
+        - ReserveStock
+        - ReleaseStock
+        - CommitStock
+        - GetProduct
+    consumes_events:
+      - topic: order.events
+        event_types:
+          - OrderConfirmed
+          - OrderCancelled
+    publishes_events:
+      - topic: inventory.events
+        event_types:
+          - StockReserved
+          - StockReservationFailed
+          - StockCommitted
+          - StockReleased
+
+  - name: payment-service
+    type: domain-service
+    responsibility:
+      - Memiliki payment record.
+      - Mensimulasikan payment processing.
+      - Mempublish payment result event.
+    owned_entities:
+      - payments
+      - payment_attempts
+      - outbox_events
+      - inbox_events
+    cache:
+      provider: Redis
+      namespace: payment-service
+      usage:
+        - Short-lived payment status cache.
+        - Optional CreatePayment idempotency lock.
+      forbidden_usage:
+        - Final payment state.
+        - Payment attempt history.
+        - Outbox/inbox source of truth.
+    exposes:
+      grpc:
+        - CreatePayment
+        - GetPaymentStatus
+        - CancelPayment
+      rest:
+        - method: POST
+          path: /demo/payments/{payment_id}/succeed
+          purpose: Memaksa payment success untuk demo.
+        - method: POST
+          path: /demo/payments/{payment_id}/fail
+          purpose: Memaksa payment failure untuk demo.
+    consumes_events:
+      - topic: order.events
+        event_types:
+          - OrderCancelled
+    publishes_events:
+      - topic: payment.events
+        event_types:
+          - PaymentCreated
+          - PaymentSucceeded
+          - PaymentFailed
+          - PaymentCancelled
+
+communication_rules:
+  frontend_to_backend: REST
+  internal_sync: gRPC
+  internal_async: Kafka
+  cache: Redis cache-aside
+  database_access: Service hanya boleh mengakses database miliknya sendiri.
+  cache_access: Service hanya boleh mengakses Redis key namespace miliknya sendiri.
+  event_key: order_id
+  required_metadata:
+    - correlation_id
+    - causation_id
+    - event_id
+    - occurred_at
+    - traceparent
+    - tracestate
+observability:
+  tracing: OpenTelemetry
+  propagation:
+    rest:
+      - traceparent
+      - tracestate
+      - X-Correlation-Id
+      - X-Request-Id
+    grpc_metadata:
+      - traceparent
+      - tracestate
+      - x-correlation-id
+      - x-request-id
+      - x-causation-id
+      - x-idempotency-key
+    kafka_headers:
+      - traceparent
+      - tracestate
+      - x-correlation-id
+      - x-causation-id
+      - x-event-id
+      - x-event-type
+  kafka_idempotency:
+    delivery_assumption: at-least-once
+    consumer_pattern: inbox_events unique event_id before business mutation
+    producer_pattern: outbox_events before Kafka publish
+    message_key: order_id

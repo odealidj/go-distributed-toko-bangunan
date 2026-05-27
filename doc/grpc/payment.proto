@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package tokobangunan.payment.v1;
+
+option go_package = "github.com/example/distributed-toko-bangunan/proto/payment/v1;paymentv1";
+
+service PaymentService {
+  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc GetPaymentStatus(GetPaymentStatusRequest) returns (GetPaymentStatusResponse);
+  rpc CancelPayment(CancelPaymentRequest) returns (CancelPaymentResponse);
+}
+
+message RequestMetadata {
+  string correlation_id = 1;
+  string causation_id = 2;
+  string idempotency_key = 3;
+}
+
+enum PaymentMode {
+  PAYMENT_MODE_UNSPECIFIED = 0;
+  PAYMENT_MODE_SUCCESS = 1;
+  PAYMENT_MODE_FAILURE = 2;
+  PAYMENT_MODE_MANUAL = 3;
+}
+
+message CreatePaymentRequest {
+  RequestMetadata metadata = 1;
+  string order_id = 2;
+  int64 amount = 3;
+  PaymentMode payment_mode = 4;
+}
+
+message CreatePaymentResponse {
+  string payment_id = 1;
+  string status = 2;
+}
+
+message GetPaymentStatusRequest {
+  RequestMetadata metadata = 1;
+  string payment_id = 2;
+}
+
+message GetPaymentStatusResponse {
+  string payment_id = 1;
+  string order_id = 2;
+  string status = 3;
+  int64 amount = 4;
+}
+
+message CancelPaymentRequest {
+  RequestMetadata metadata = 1;
+  string payment_id = 2;
+  string order_id = 3;
+  string reason = 4;
+}
+
+message CancelPaymentResponse {
+  string payment_id = 1;
+  string status = 2;
+}
+

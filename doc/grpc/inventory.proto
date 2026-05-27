@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package tokobangunan.inventory.v1;
+
+option go_package = "github.com/example/distributed-toko-bangunan/proto/inventory/v1;inventoryv1";
+
+service InventoryService {
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ValidateProducts(ValidateProductsRequest) returns (ValidateProductsResponse);
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+  rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
+  rpc CommitStock(CommitStockRequest) returns (CommitStockResponse);
+}
+
+message RequestMetadata {
+  string correlation_id = 1;
+  string causation_id = 2;
+  string idempotency_key = 3;
+}
+
+message ProductSnapshot {
+  string product_id = 1;
+  string name = 2;
+  string category = 3;
+  string unit = 4;
+  int64 unit_price = 5;
+  double available_qty = 6;
+  double weight_kg = 7;
+  bool requires_truck = 8;
+}
+
+message OrderItemInput {
+  string product_id = 1;
+  double quantity = 2;
+}
+
+message ValidatedOrderItem {
+  string product_id = 1;
+  string product_name = 2;
+  string unit = 3;
+  double quantity = 4;
+  int64 unit_price = 5;
+  int64 line_total = 6;
+}
+
+message GetProductRequest {
+  RequestMetadata metadata = 1;
+  string product_id = 2;
+}
+
+message GetProductResponse {
+  ProductSnapshot product = 1;
+}
+
+message ValidateProductsRequest {
+  RequestMetadata metadata = 1;
+  repeated OrderItemInput items = 2;
+}
+
+message ValidateProductsResponse {
+  repeated ValidatedOrderItem items = 1;
+  int64 total_amount = 2;
+}
+
+message ReserveStockRequest {
+  RequestMetadata metadata = 1;
+  string order_id = 2;
+  repeated OrderItemInput items = 3;
+}
+
+message ReserveStockResponse {
+  string reservation_id = 1;
+  string status = 2;
+  string failure_reason = 3;
+}
+
+message ReleaseStockRequest {
+  RequestMetadata metadata = 1;
+  string order_id = 2;
+}
+
+message ReleaseStockResponse {
+  string reservation_id = 1;
+  string status = 2;
+}
+
+message CommitStockRequest {
+  RequestMetadata metadata = 1;
+  string order_id = 2;
+}
+
+message CommitStockResponse {
+  string reservation_id = 1;
+  string status = 2;
+}
+
