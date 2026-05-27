@@ -33,17 +33,23 @@ Pilihan library boleh berubah saat implementasi, tetapi berikut default yang waj
 
 | Concern | Suggested Option |
 | --- | --- |
-| HTTP server | `net/http` with router middleware or `chi` |
-| gRPC | `google.golang.org/grpc` |
-| PostgreSQL | `pgx` |
-| SQL migrations | `goose` or `golang-migrate` |
+| Framework | `go-kratos` |
+| HTTP/gRPC transport | `go-kratos` di adapter/bootstrap layer |
+| PostgreSQL | `pgx` / `pgxpool` |
+| SQL migrations | `goose` |
 | Redis | `go-redis` |
-| Kafka | `segmentio/kafka-go` or `sarama` |
-| Logging | standard `slog` or `zerolog` |
-| Configuration | environment variables with typed config structs |
-| Testing | standard `testing`, fakes, and optional testcontainers |
+| Kafka | `github.com/twmb/franz-go/pkg/kgo` |
+| Logging | standard `log/slog` |
+| Configuration | environment variables dengan typed config struct |
+| Testing | standard `testing`, fake port, dan Docker Compose untuk integration test |
 
 Jangan biarkan API library bocor ke domain layer.
+
+Keputusan teknologi final dijelaskan di:
+
+```text
+doc/implementation/technology-decisions.md
+```
 
 ## 4. Layout Service yang Direkomendasikan
 
@@ -78,6 +84,7 @@ Setiap service sebaiknya mengikuti struktur berikut:
         redis/
         kafka/
         grpc/
+        payment_gateway/
     config/
     bootstrap/
   migrations/

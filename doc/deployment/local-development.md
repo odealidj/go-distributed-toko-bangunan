@@ -5,7 +5,7 @@
 Local environment harus menyediakan:
 
 - Go toolchain.
-- Kafka broker.
+- Apache Kafka broker dengan KRaft mode.
 - PostgreSQL databases, one per service.
 - Redis.
 - OpenTelemetry Collector.
@@ -25,6 +25,7 @@ Local environment harus menyediakan:
 | catalog-inventory-service gRPC | 9001 |
 | payment-service gRPC | 9002 |
 | Kafka | 9092 |
+| Kafka host listener | 29092 |
 | Kafka UI | 8090 |
 | Redis | 6379 |
 | OpenTelemetry Collector OTLP gRPC | 4317 |
@@ -93,7 +94,7 @@ Produk demo yang direkomendasikan:
 ## 5. Urutan Startup
 
 1. Jalankan PostgreSQL database.
-2. Jalankan Kafka.
+2. Jalankan Apache Kafka KRaft.
 3. Jalankan Redis.
 4. Jalankan OpenTelemetry Collector dan Jaeger/Tempo.
 5. Jalankan migration untuk setiap service.
@@ -119,3 +120,23 @@ Readiness harus memverifikasi dependency yang dibutuhkan:
 - Kafka producer/consumer readiness jika berlaku.
 - gRPC downstream yang dibutuhkan untuk `order-service`.
 - OpenTelemetry exporter misconfiguration harus dilog, tetapi tidak boleh memblokir core business flow dalam demo mode.
+
+## 7. Catatan Docker Compose
+
+Detail topology Docker Compose dijelaskan di:
+
+```text
+doc/deployment/docker-compose-architecture.md
+```
+
+Untuk service di dalam Docker network:
+
+```text
+KAFKA_BROKERS=kafka:9092
+```
+
+Untuk tool dari host:
+
+```text
+localhost:29092
+```

@@ -8,6 +8,8 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [System Architecture](architecture/system-architecture.md)
 - [Checkout Saga Design](architecture/checkout-saga.md)
 - [Panduan Go Hexagonal Architecture](implementation/go-hexagonal-architecture.md)
+- [Keputusan Teknologi](implementation/technology-decisions.md)
+- [Struktur Repository](implementation/repository-structure.md)
 - [Strategi Redis Cache](cache/redis-cache.md)
 - [Tracing, OpenTelemetry, dan Kafka Idempotency](observability/tracing-and-idempotency.md)
 - [Roadmap Implementasi Production-Like](roadmap/production-like-implementation-roadmap.md)
@@ -31,8 +33,11 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 ## Dokumen Pendukung
 
 - [Kontrak Event](events/event-contracts.md)
+- [Kafka Operational Design](events/kafka-operational-design.md)
 - [Logical Data Model](database/logical-data-model.md)
 - [Panduan Local Development](deployment/local-development.md)
+- [Arsitektur Docker Compose](deployment/docker-compose-architecture.md)
+- [Desain Auth](security/auth-design.md)
 - [Strategi Testing](testing/testing-strategy.md)
 - [Demo Script](demo/demo-script.md)
 - [Panduan Implementasi AI](prompts/implementation-guide.md)
