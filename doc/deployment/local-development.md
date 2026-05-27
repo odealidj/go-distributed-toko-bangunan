@@ -5,6 +5,7 @@
 Local environment harus menyediakan:
 
 - Go toolchain.
+- Podman dan `podman compose` untuk local development.
 - Apache Kafka broker dengan KRaft mode.
 - PostgreSQL databases, one per service.
 - Redis.
@@ -140,3 +141,41 @@ Untuk tool dari host:
 ```text
 localhost:29092
 ```
+
+Local default menggunakan Podman:
+
+```text
+COMPOSE="podman compose"
+```
+
+Jika dijalankan di VPS dengan Docker:
+
+```text
+make infra-up COMPOSE="docker compose"
+make up COMPOSE="docker compose"
+```
+
+## 8. Workflow Debug Lokal
+
+Untuk debug service dari IDE/local terminal:
+
+```text
+make infra-up
+make inventory-run
+make payment-run
+make order-run
+```
+
+`make infra-up` hanya menjalankan infrastructure:
+
+```text
+postgres
+redis
+kafka
+kafka-ui
+otel-collector
+jaeger
+prometheus/grafana jika profile observability aktif
+```
+
+Service aplikasi dapat dijalankan terpisah agar breakpoint/debugger lebih mudah digunakan.

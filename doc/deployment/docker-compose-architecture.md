@@ -18,6 +18,11 @@ kafka
 kafka-ui
 otel-collector
 jaeger
+prometheus
+grafana
+cAdvisor
+postgres-exporter
+kafka-exporter
 ```
 
 ## 3. Diagram Local Runtime
@@ -140,13 +145,45 @@ Target minimum:
 make up
 make down
 make infra-up
+make infra-down
+make infra-logs
+make infra-ps
 make migrate
 make seed
+make order-run
+make inventory-run
+make payment-run
+make order-test
+make inventory-test
+make payment-test
 make test
 make demo-success
 make demo-payment-failed
 make demo-insufficient-stock
 make demo-duplicate-event
+```
+
+Target `infra-up` hanya menjalankan dependency infrastructure, bukan service aplikasi.
+
+Tujuan:
+
+- service dapat dijalankan dari IDE;
+- debugging lebih mudah;
+- restart service tidak perlu restart Kafka/PostgreSQL/Redis.
+
+Contoh workflow:
+
+```text
+make infra-up
+make inventory-run
+make payment-run
+make order-run
+```
+
+Untuk menjalankan semua service via Compose:
+
+```text
+make up
 ```
 
 ## 9. Urutan Startup
@@ -157,10 +194,11 @@ make demo-duplicate-event
 4. `kafka-ui`
 5. `otel-collector`
 6. `jaeger`
-7. migration dan seed
-8. `catalog-inventory-service`
-9. `payment-service`
-10. `order-service`
+7. `prometheus` / `grafana` jika profile observability aktif
+8. migration dan seed
+9. `catalog-inventory-service`
+10. `payment-service`
+11. `order-service`
 
 ## 10. Batasan
 
@@ -175,3 +213,30 @@ Untuk cloud murah, topology yang sama dapat dijalankan di satu VPS, tetapi perlu
 - resource limit;
 - log rotation.
 
+## 11. Podman Lokal dan Docker VPS
+
+Local development diasumsikan menggunakan Podman.
+
+VPS boleh menggunakan Docker.
+
+Makefile harus menggunakan variable:
+
+```text
+COMPOSE ?= podman compose
+```
+
+Override di VPS:
+
+```text
+make up COMPOSE="docker compose"
+make infra-up COMPOSE="docker compose"
+```
+
+Aturan kompatibilitas:
+
+- gunakan Compose service name untuk komunikasi antar container;
+- hindari `container_name` agar scaling/debugging lebih fleksibel;
+- hindari `host.docker.internal`;
+- gunakan named volume untuk PostgreSQL/Kafka/Redis;
+- untuk bind mount di Podman rootless + SELinux, gunakan `:Z` jika dibutuhkan;
+- jangan memakai fitur Compose yang hanya spesifik Docker Swarm.

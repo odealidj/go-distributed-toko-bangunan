@@ -22,6 +22,7 @@ Dokumen ini mendefinisikan struktur repository untuk implementasi monorepo 3 ser
 │   ├── catalog-inventory-service/
 │   └── payment-service/
 ├── shared/
+│   ├── go.mod
 │   ├── observability/
 │   ├── response/
 │   ├── messaging/
@@ -49,6 +50,47 @@ Dokumen ini mendefinisikan struktur repository untuk implementasi monorepo 3 ser
 | `scripts/` | Script demo/test/migration. |
 | `deployments/` | Config deployment lokal. |
 | `tests/` | E2E dan integration test lintas service. |
+
+## 3.1 Go Module Strategy
+
+Repository menggunakan `go.work` di root dan `go.mod` per service.
+
+Struktur:
+
+```text
+go.work
+services/order-service/go.mod
+services/catalog-inventory-service/go.mod
+services/payment-service/go.mod
+shared/go.mod
+```
+
+Aturan:
+
+- tidak ada root `go.mod`;
+- setiap service memiliki dependency sendiri;
+- `shared/go.mod` hanya berisi utility generic, bukan business logic;
+- `go.work` digunakan untuk development lokal agar semua module mudah dibuild bersama;
+- build Docker service tetap dilakukan dari folder service masing-masing.
+
+Contoh isi `go.work`:
+
+```text
+go 1.22
+
+use (
+  ./shared
+  ./services/order-service
+  ./services/catalog-inventory-service
+  ./services/payment-service
+)
+```
+
+Alasan:
+
+- menjaga isolasi dependency per service;
+- tetap nyaman untuk monorepo;
+- selaras dengan microservices boundary.
 
 ## 4. Struktur Per Service
 
@@ -256,3 +298,121 @@ E2E test lintas service:
 ```text
 tests/e2e/
 ```
+
+## 10. Makefile Target
+
+Root `Makefile` menjadi entrypoint operasional lokal.
+
+### Infra target
+
+Target khusus infrastructure:
+
+```text
+make infra-up
+make infra-down
+make infra-logs
+make infra-ps
+```
+
+`make infra-up` hanya menjalankan:
+
+```text
+postgres
+redis
+kafka
+kafka-ui
+otel-collector
+jaeger
+prometheus
+grafana
+exporter jika sudah diaktifkan
+```
+
+Service aplikasi tidak ikut dijalankan agar mudah debug dari IDE atau terminal lokal.
+
+### Service run target
+
+```text
+make order-run
+make inventory-run
+make payment-run
+```
+
+### Service build target
+
+```text
+make order-build
+make inventory-build
+make payment-build
+make build-all
+```
+
+### Service test target
+
+```text
+make order-test
+make inventory-test
+make payment-test
+make test-all
+```
+
+### Migration target
+
+```text
+make order-migrate
+make inventory-migrate
+make payment-migrate
+make migrate
+```
+
+### Generation target
+
+```text
+make proto
+make sqlc
+make generate
+```
+
+### Demo target
+
+```text
+make demo-success
+make demo-payment-failed
+make demo-insufficient-stock
+make demo-duplicate-event
+```
+
+### Performance target
+
+```text
+make perf-smoke
+make perf-load
+make perf-stress
+make perf-spike
+```
+
+## 11. Container Engine
+
+Local development menggunakan Podman, tetapi deployment VPS boleh menggunakan Docker.
+
+Makefile harus mendukung override:
+
+```text
+COMPOSE ?= podman compose
+```
+
+Di VPS:
+
+```text
+make infra-up COMPOSE="docker compose"
+```
+
+Aturan agar Compose portable:
+
+- gunakan service DNS seperti `kafka:9092`, `postgres:5432`, `redis:6379`;
+- jangan bergantung pada `host.docker.internal`;
+- hindari `container_name` kecuali benar-benar perlu;
+- gunakan named volume untuk data utama;
+- hati-hati dengan bind mount permission pada Podman rootless;
+- jika memakai SELinux, bind mount mungkin membutuhkan suffix `:Z`;
+- jangan memakai fitur Compose yang hanya berjalan di Docker Swarm.

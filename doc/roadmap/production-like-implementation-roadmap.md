@@ -347,8 +347,16 @@ Command yang direkomendasikan:
 ```text
 make up
 make down
+make infra-up
+make infra-down
 make migrate
 make seed
+make order-run
+make inventory-run
+make payment-run
+make order-test
+make inventory-test
+make payment-test
 make test
 make demo-success
 make demo-payment-failed
@@ -359,6 +367,8 @@ make demo-duplicate-event
 Kriteria penerimaan:
 
 - Evaluator baru dapat menjalankan sistem dari instruksi README.
+- Developer dapat menjalankan infrastructure saja dengan `make infra-up`.
+- Setiap service dapat dijalankan dan dites lewat target Makefile masing-masing.
 - Demo command mencetak expected final state.
 - Reset command mengembalikan local environment ke clean state.
 
