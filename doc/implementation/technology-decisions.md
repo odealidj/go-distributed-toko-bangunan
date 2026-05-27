@@ -12,7 +12,9 @@ Dokumen ini mengunci pilihan teknologi awal agar implementasi tidak berubah-ubah
 | Auth | JWT middleware/edge concern, bukan `auth-service` |
 | Go module | `go.work` dengan `go.mod` per service |
 | Framework | `go-kratos` |
-| PostgreSQL client | `pgx` / `pgxpool` |
+| PostgreSQL access order-service | `sqlc` + `pgx` / `pgxpool` |
+| PostgreSQL access catalog-inventory-service | `sqlc` + `pgx` / `pgxpool` |
+| PostgreSQL access payment-service | `sqlx` + `pgx` stdlib driver |
 | Migration tool | `goose` |
 | Kafka broker | Apache Kafka KRaft mode |
 | Kafka client | `github.com/twmb/franz-go/pkg/kgo` |
@@ -91,15 +93,94 @@ Kratos hanya boleh berada di adapter/bootstrap layer.
 Domain dan application layer tidak boleh import Kratos.
 ```
 
-## 7. PostgreSQL: pgx
+## 7. PostgreSQL Access
 
-Gunakan `pgx` / `pgxpool` untuk akses PostgreSQL.
+Gunakan pendekatan berbeda per service untuk pembelajaran dan tradeoff yang jelas.
+
+| Service | Data access | Alasan |
+| --- | --- | --- |
+| `order-service` | `sqlc` + `pgx` / `pgxpool` | Butuh type-safety untuk order lifecycle, saga state, outbox, dan inbox. |
+| `catalog-inventory-service` | `sqlc` + `pgx` / `pgxpool` | Butuh SQL eksplisit dan aman untuk stock reservation, row locking, dan concurrency. |
+| `payment-service` | `sqlx` + `pgx` stdlib driver | Query lebih sederhana, cocok untuk belajar manual mapping dan fleksibilitas SQL. |
+
+Tidak menggunakan full ORM seperti GORM pada fase awal.
+
+Alasan:
+
+- query penting tetap eksplisit;
+- lebih mudah menjelaskan SQL saat interview;
+- `sqlc` memberi compile-time type safety untuk service yang lebih kritikal;
+- `sqlx` memberi pengalaman manual mapping pada service yang risikonya lebih rendah;
+- semua tetap berada di outbound adapter dan tidak bocor ke domain/application layer.
 
 Aturan:
 
-- repository adapter menggunakan `pgx`;
+- `order-service` dan `catalog-inventory-service` menggunakan generated query dari `sqlc`;
+- `payment-service` menggunakan `sqlx` dengan driver `pgx` stdlib;
 - application layer bergantung pada repository port/interface;
-- transaction runner dibungkus sebagai port agar use case tidak bergantung pada `pgx.Tx`.
+- transaction runner dibungkus sebagai port agar use case tidak bergantung pada `pgx.Tx`, `sql.Tx`, atau `sqlx.Tx`.
+
+Contoh driver `sqlx` untuk payment-service:
+
+```go
+import _ "github.com/jackc/pgx/v5/stdlib"
+
+db, err := sqlx.Connect("pgx", databaseURL)
+```
+
+## 7.1 sqlc
+
+Digunakan oleh:
+
+```text
+order-service
+catalog-inventory-service
+```
+
+Struktur yang disarankan:
+
+```text
+internal/adapter/outbound/postgres/
+  query/
+    orders.sql
+    outbox.sql
+    inbox.sql
+  sqlc/
+    generated files
+  repository.go
+```
+
+Aturan:
+
+- SQL disimpan eksplisit di file `.sql`;
+- query yang membutuhkan lock seperti `FOR UPDATE` harus ditulis jelas;
+- generated code sqlc hanya digunakan di adapter outbound;
+- domain/application tidak boleh import package sqlc generated.
+
+## 7.2 sqlx
+
+Digunakan oleh:
+
+```text
+payment-service
+```
+
+Struktur yang disarankan:
+
+```text
+internal/adapter/outbound/postgres/
+  payment_repository_sqlx.go
+  outbox_repository_sqlx.go
+  inbox_repository_sqlx.go
+  transaction_runner_sqlx.go
+```
+
+Aturan:
+
+- gunakan named query atau explicit scan secara konsisten;
+- mapping dari database row ke domain model dilakukan di repository adapter;
+- domain/application tidak boleh import `sqlx`;
+- jangan campur `sqlc` dan `sqlx` dalam service yang sama pada fase awal.
 
 ## 8. Migration: goose
 
@@ -214,4 +295,3 @@ Detail strategi test ada di:
 ```text
 doc/testing/testing-strategy.md
 ```
-

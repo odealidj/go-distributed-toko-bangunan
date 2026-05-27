@@ -200,7 +200,9 @@ Skenario component test `order-service`:
 - Application package bergantung pada port/interface, bukan concrete adapter.
 - Inbound adapter mendelegasikan ke application use case.
 - Domain package tidak import `github.com/go-kratos/kratos`.
-- Application package tidak import `pgx`, `kgo`, atau `go-redis`.
+- Domain/application package tidak import `pgx`, `sqlc` generated package, `sqlx`, `kgo`, atau `go-redis`.
+- `sqlc` hanya muncul di outbound postgres adapter milik `order-service` dan `catalog-inventory-service`.
+- `sqlx` hanya muncul di outbound postgres adapter milik `payment-service`.
 
 ## 7. Observability Tests
 

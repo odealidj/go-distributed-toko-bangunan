@@ -95,6 +95,70 @@ Catatan:
 - Folder `payment_gateway/` terutama relevan untuk `payment-service`.
 - Folder boleh disederhanakan jika service belum membutuhkan semua adapter, tetapi arah dependency tetap sama.
 
+## 4.1 Struktur Data Access Per Service
+
+### order-service
+
+Gunakan `sqlc` + `pgx`.
+
+```text
+services/order-service/internal/adapter/outbound/postgres/
+├── query/
+│   ├── orders.sql
+│   ├── order_items.sql
+│   ├── saga.sql
+│   ├── outbox.sql
+│   └── inbox.sql
+├── sqlc/
+│   └── generated files
+├── order_repository.go
+├── saga_repository.go
+├── outbox_repository.go
+├── inbox_repository.go
+└── transaction_runner.go
+```
+
+### catalog-inventory-service
+
+Gunakan `sqlc` + `pgx`.
+
+```text
+services/catalog-inventory-service/internal/adapter/outbound/postgres/
+├── query/
+│   ├── products.sql
+│   ├── inventories.sql
+│   ├── stock_reservations.sql
+│   ├── outbox.sql
+│   └── inbox.sql
+├── sqlc/
+│   └── generated files
+├── product_repository.go
+├── inventory_repository.go
+├── stock_reservation_repository.go
+├── outbox_repository.go
+├── inbox_repository.go
+└── transaction_runner.go
+```
+
+### payment-service
+
+Gunakan `sqlx` + `pgx` stdlib driver.
+
+```text
+services/payment-service/internal/adapter/outbound/postgres/
+├── payment_repository_sqlx.go
+├── payment_attempt_repository_sqlx.go
+├── outbox_repository_sqlx.go
+├── inbox_repository_sqlx.go
+└── transaction_runner_sqlx.go
+```
+
+Alasan:
+
+- `order-service` dan `catalog-inventory-service` lebih kritikal dan query-nya lebih sensitif, sehingga menggunakan `sqlc` untuk type-safety.
+- `payment-service` lebih sederhana dan cocok untuk pembelajaran `sqlx`.
+- Perbedaan library tidak boleh terlihat oleh application layer karena semua akses DB melewati port/interface.
+
 ## 5. Dependency Rule
 
 Aturan dependency:
@@ -109,6 +173,8 @@ Dilarang:
 domain -> adapter
 domain -> go-kratos
 domain -> pgx
+domain -> sqlc generated package
+domain -> sqlx
 domain -> Redis client
 domain -> Kafka client
 domain -> generated gRPC client
@@ -190,4 +256,3 @@ E2E test lintas service:
 ```text
 tests/e2e/
 ```
-

@@ -35,7 +35,9 @@ Pilihan library boleh berubah saat implementasi, tetapi berikut default yang waj
 | --- | --- |
 | Framework | `go-kratos` |
 | HTTP/gRPC transport | `go-kratos` di adapter/bootstrap layer |
-| PostgreSQL | `pgx` / `pgxpool` |
+| PostgreSQL order-service | `sqlc` + `pgx` / `pgxpool` |
+| PostgreSQL catalog-inventory-service | `sqlc` + `pgx` / `pgxpool` |
+| PostgreSQL payment-service | `sqlx` + `pgx` stdlib driver |
 | SQL migrations | `goose` |
 | Redis | `go-redis` |
 | Kafka | `github.com/twmb/franz-go/pkg/kgo` |
@@ -81,6 +83,8 @@ Setiap service sebaiknya mengikuti struktur berikut:
         kafka/
       outbound/
         postgres/
+          query/          # service sqlc only
+          sqlc/           # service sqlc only
         redis/
         kafka/
         grpc/
@@ -265,6 +269,8 @@ Module ini tidak boleh bergantung langsung pada:
 - generated gRPC client
 - Kafka producer implementation
 - SQL driver
+- sqlc generated code
+- sqlx DB/Tx
 - Redis client
 
 ## 9. Process Model
@@ -305,3 +311,9 @@ Contoh domain error:
 - Application test harus menggunakan fake port.
 - Adapter test boleh menggunakan PostgreSQL/Redis/Kafka nyata melalui test container atau local Docker.
 - Contract test harus memvalidasi compatibility OpenAPI, proto, dan event schema.
+
+Data access rule:
+
+- `order-service` dan `catalog-inventory-service` menggunakan `sqlc` di outbound postgres adapter.
+- `payment-service` menggunakan `sqlx` di outbound postgres adapter.
+- Domain/application tidak boleh import `sqlc`, `sqlx`, `pgx`, atau `database/sql`.
