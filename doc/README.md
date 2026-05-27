@@ -12,6 +12,7 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Struktur Repository](implementation/repository-structure.md)
 - [Strategi Redis Cache](cache/redis-cache.md)
 - [Tracing, OpenTelemetry, dan Kafka Idempotency](observability/tracing-and-idempotency.md)
+- [Metrics dan Resource Dashboard](observability/metrics-dashboard.md)
 - [Roadmap Implementasi Production-Like](roadmap/production-like-implementation-roadmap.md)
 - [Architecture Decision Records](adr/README.md)
 
@@ -39,6 +40,7 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Arsitektur Docker Compose](deployment/docker-compose-architecture.md)
 - [Desain Auth](security/auth-design.md)
 - [Strategi Testing](testing/testing-strategy.md)
+- [Performance Testing dengan K6](testing/performance-testing-k6.md)
 - [Demo Script](demo/demo-script.md)
 - [Panduan Implementasi AI](prompts/implementation-guide.md)
 

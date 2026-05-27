@@ -212,6 +212,8 @@ Cakupan:
 - Structured logs.
 - Basic metrics.
 - Jaeger or Tempo for local trace viewing.
+- Resource metrics untuk CPU/RAM/container.
+- Dashboard awal untuk Kafka lag, PostgreSQL connection, dan outbox pending.
 
 Trace demo:
 
@@ -224,6 +226,41 @@ Kriteria penerimaan:
 - Satu checkout flow dapat diikuti melalui span REST, gRPC, Kafka, PostgreSQL, dan Redis.
 - Log menyertakan `trace_id`, `span_id`, `correlation_id`, dan `order_id`.
 - Metric duplicate event Kafka terlihat atau dilog.
+- CPU/RAM service terlihat saat demo.
+- Kafka consumer lag dan outbox pending dapat dipantau.
+
+### 8.1 Performance Testing dan Resource Metrics
+
+Priority: P1
+
+Cakupan:
+
+- K6 smoke/load/stress/spike test.
+- Custom metric checkout terminal duration.
+- Prometheus dan Grafana untuk metrics dashboard.
+- cAdvisor untuk container CPU/RAM/network/block I/O.
+- postgres-exporter untuk PostgreSQL metrics.
+- kafka-exporter untuk Kafka consumer lag/topic metrics.
+- redis-exporter untuk Redis metrics jika cache sudah aktif.
+- Business metrics untuk checkout, Saga, outbox, inbox, stock reservation, dan payment.
+
+Dokumen:
+
+```text
+doc/testing/performance-testing-k6.md
+doc/observability/metrics-dashboard.md
+```
+
+Kriteria penerimaan:
+
+- `make perf-smoke` dapat menjalankan K6 smoke test.
+- `make perf-load` menghasilkan summary latency, error rate, dan checkout terminal duration.
+- Grafana menampilkan CPU/RAM container.
+- Grafana menampilkan Kafka consumer lag.
+- Grafana menampilkan PostgreSQL connection/query metrics.
+- Grafana menampilkan outbox pending dan inbox duplicate metrics.
+- Setelah load test, outbox pending dan Kafka lag dapat turun kembali.
+- Tidak ada stock corruption setelah concurrent checkout.
 
 ### 9. Graceful Shutdown
 
