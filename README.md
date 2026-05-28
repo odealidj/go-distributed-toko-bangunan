@@ -3,6 +3,7 @@
 Demo microservices untuk mini toko bangunan menggunakan Go, Hexagonal Architecture, gRPC, Kafka, PostgreSQL, Redis, OpenTelemetry, dan Saga orchestration.
 
 Dokumentasi utama tersedia di [doc/README.md](doc/README.md).
+Urutan coding dan branch per phase tersedia di [doc/implementation/implementation-phases.md](doc/implementation/implementation-phases.md).
 
 ## Service
 
@@ -34,4 +35,3 @@ make infra-up COMPOSE="docker compose"
 - [Arsitektur Docker Compose](doc/deployment/docker-compose-architecture.md)
 - [Checkout Saga](doc/architecture/checkout-saga.md)
 - [Kafka Operational Design](doc/events/kafka-operational-design.md)
-

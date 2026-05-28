@@ -10,6 +10,7 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Panduan Go Hexagonal Architecture](implementation/go-hexagonal-architecture.md)
 - [Keputusan Teknologi](implementation/technology-decisions.md)
 - [Struktur Repository](implementation/repository-structure.md)
+- [Phase Implementasi](implementation/implementation-phases.md)
 - [Strategi Redis Cache](cache/redis-cache.md)
 - [Tracing, OpenTelemetry, dan Kafka Idempotency](observability/tracing-and-idempotency.md)
 - [Metrics dan Resource Dashboard](observability/metrics-dashboard.md)
