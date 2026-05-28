@@ -1,0 +1,9 @@
+.env
+.env.local
+.idea/
+.vscode/
+bin/
+services/*/api
+coverage.out
+tmp/
+*.log
