@@ -20,9 +20,9 @@ func RegisterRoutes(server *khttp.Server, cfg config.ServiceConfig, payment *use
 
 func healthHandler(cfg config.ServiceConfig) khttp.HandlerFunc {
 	return func(ctx khttp.Context) error {
-		return response.JSON(ctx, http.StatusOK, map[string]any{
-			"service": cfg.ServiceName,
-			"status":  "ok",
+		return response.JSON(ctx, http.StatusOK, healthResponse{
+			Service: cfg.ServiceName,
+			Status:  "ok",
 		})
 	}
 }
@@ -33,13 +33,13 @@ func readyHandler(cfg config.ServiceConfig, payment *usecase.PaymentUseCase) kht
 		if err := payment.Ping(ctx); err != nil {
 			databaseStatus = "unavailable"
 		}
-		return response.JSON(ctx, http.StatusOK, map[string]any{
-			"service": cfg.ServiceName,
-			"status":  "ready",
-			"checks": map[string]string{
-				"database": databaseStatus,
-				"kafka":    "not_configured",
-				"redis":    "not_configured",
+		return response.JSON(ctx, http.StatusOK, readinessResponse{
+			Service: cfg.ServiceName,
+			Status:  "ready",
+			Checks: readinessChecks{
+				Database: databaseStatus,
+				Kafka:    "not_configured",
+				Redis:    "not_configured",
 			},
 		})
 	}
@@ -57,13 +57,39 @@ func getPaymentHandler(payment *usecase.PaymentUseCase) khttp.HandlerFunc {
 		if err != nil {
 			return response.JSONError(ctx, http.StatusInternalServerError, "PAYMENT_QUERY_FAILED", "Gagal mengambil payment.")
 		}
-		return response.JSON(ctx, http.StatusOK, map[string]any{
-			"id":              result.ID,
-			"order_id":        result.OrderID,
-			"amount":          result.Amount,
-			"status":          result.Status,
-			"payment_mode":    result.PaymentMode,
-			"idempotency_key": result.IdempotencyKey,
+		return response.JSON(ctx, http.StatusOK, paymentResponse{
+			ID:             result.ID,
+			OrderID:        result.OrderID,
+			Amount:         result.Amount,
+			Status:         result.Status,
+			PaymentMode:    result.PaymentMode,
+			IdempotencyKey: result.IdempotencyKey,
 		})
 	}
+}
+
+type healthResponse struct {
+	Service string `json:"service"`
+	Status  string `json:"status"`
+}
+
+type readinessResponse struct {
+	Service string          `json:"service"`
+	Status  string          `json:"status"`
+	Checks  readinessChecks `json:"checks"`
+}
+
+type readinessChecks struct {
+	Database string `json:"database"`
+	Kafka    string `json:"kafka"`
+	Redis    string `json:"redis"`
+}
+
+type paymentResponse struct {
+	ID             string `json:"id"`
+	OrderID        string `json:"order_id"`
+	Amount         int64  `json:"amount"`
+	Status         string `json:"status"`
+	PaymentMode    string `json:"payment_mode"`
+	IdempotencyKey string `json:"idempotency_key"`
 }
