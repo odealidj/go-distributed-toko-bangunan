@@ -10,7 +10,12 @@ import (
 
 func main() {
 	cfg := config.LoadService("order-service", ":8080", ":9000")
-	app := bootstrap.NewApp(cfg)
+	app, cleanup, err := bootstrap.NewApp(cfg)
+	if err != nil {
+		slog.Error("gagal membuat aplikasi", "error", err)
+		os.Exit(1)
+	}
+	defer cleanup()
 
 	if err := app.Run(); err != nil {
 		slog.Error("service berhenti dengan error", "error", err)

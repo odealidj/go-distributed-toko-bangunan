@@ -91,10 +91,6 @@ func (r *CatalogRepository) ValidateProducts(ctx context.Context, items []model.
 		if !ok {
 			return nil, 0, fmt.Errorf("%w: %s", model.ErrProductNotFound, item.ProductID)
 		}
-		if product.AvailableQty < item.Quantity {
-			return nil, 0, fmt.Errorf("%w: %s", model.ErrInsufficientStock, item.ProductID)
-		}
-
 		lineTotal := int64(item.Quantity * float64(product.Price))
 		total += lineTotal
 		validated = append(validated, model.ValidatedItem{

@@ -94,6 +94,8 @@ services:
       DATABASE_URL: postgres://toko:toko@postgres:5432/order_db?sslmode=disable
       REDIS_ADDR: redis:6379
       KAFKA_BROKERS: kafka:9092
+      INVENTORY_GRPC_ADDR: catalog-inventory-service:9001
+      PAYMENT_GRPC_ADDR: payment-service:9002
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8080:8080"
@@ -167,4 +169,3 @@ services:
 
 volumes:
   postgres-data:
-

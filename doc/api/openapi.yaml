@@ -32,6 +32,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
         '500':
           $ref: '#/components/responses/InternalError'
     get:
@@ -232,6 +234,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     InternalError:
       description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadGateway:
+      description: Downstream service gagal dipanggil saat checkout
       content:
         application/json:
           schema:
@@ -479,6 +487,8 @@ components:
         payment_id:
           type: string
           nullable: true
+        correlation_id:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -495,6 +505,8 @@ components:
         - unit_price
         - line_total
       properties:
+        id:
+          type: string
         product_id:
           type: string
         product_name:
