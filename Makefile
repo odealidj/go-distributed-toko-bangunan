@@ -9,6 +9,7 @@ INVENTORY_DIR := services/catalog-inventory-service
 PAYMENT_DIR := services/payment-service
 PROTO_FILES := proto/inventory/v1/inventory.proto proto/order/v1/order.proto proto/payment/v1/payment.proto
 INVENTORY_DATABASE_URL ?= postgres://toko:toko@localhost:5432/inventory_db?sslmode=disable
+PAYMENT_DATABASE_URL ?= postgres://toko:toko@localhost:5432/payment_db?sslmode=disable
 
 .PHONY: infra-up infra-down infra-logs infra-ps up down \
 	order inventory payment \
@@ -16,7 +17,7 @@ INVENTORY_DATABASE_URL ?= postgres://toko:toko@localhost:5432/inventory_db?sslmo
 	proto-test shared-test order-test inventory-test payment-test test-all \
 	order-build inventory-build payment-build build-all \
 	order-migrate inventory-migrate payment-migrate migrate \
-	inventory-migrate-compose inventory-seed seed \
+	inventory-migrate-compose payment-migrate-compose inventory-seed seed \
 	proto proto-validate sqlc generate test
 
 infra-up:
@@ -50,7 +51,7 @@ inventory-run:
 	cd $(INVENTORY_DIR) && DATABASE_URL="$(INVENTORY_DATABASE_URL)" $(GO) run $(GOFLAGS) ./cmd/api
 
 payment-run:
-	cd $(PAYMENT_DIR) && $(GO) run $(GOFLAGS) ./cmd/api
+	cd $(PAYMENT_DIR) && DATABASE_URL="$(PAYMENT_DATABASE_URL)" $(GO) run $(GOFLAGS) ./cmd/api
 
 shared-test:
 	cd shared && $(GO) test $(GOFLAGS) ./...
@@ -93,6 +94,9 @@ inventory-migrate-compose:
 
 payment-migrate:
 	cd $(PAYMENT_DIR) && $(GOOSE) postgres "$$PAYMENT_DATABASE_URL" up
+
+payment-migrate-compose:
+	awk '/-- \+goose Down/{exit} {print}' $(PAYMENT_DIR)/migrations/00001_create_payment_tables.sql | $(COMPOSE) exec -T postgres psql -U toko -d payment_db
 
 migrate: order-migrate inventory-migrate payment-migrate
 
