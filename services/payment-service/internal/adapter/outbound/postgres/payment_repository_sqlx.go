@@ -7,8 +7,10 @@ import (
 	"encoding/hex"
 	"errors"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 type PaymentRepository struct {
@@ -136,6 +138,35 @@ func (r *PaymentRepository) CancelPayment(ctx context.Context, command model.Can
 	return payment, nil
 }
 
+func (r *PaymentRepository) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer rollback(tx)
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO inbox_events (event_id, event_type, aggregate_id, correlation_id, traceparent)
+		VALUES ($1, $2, $3, $4, $5)
+	`, event.EventID, event.EventType, event.AggregateID, event.CorrelationID, nil); err != nil {
+		if isUniqueViolation(err) {
+			return true, tx.Commit()
+		}
+		return false, err
+	}
+
+	if event.EventType == "OrderCancelled" {
+		if err := cancelPaymentByOrderIDTx(ctx, tx, event.AggregateID); err != nil {
+			return false, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 func (r *PaymentRepository) findByIdempotencyKey(ctx context.Context, idempotencyKey string) (model.Payment, error) {
 	var payment paymentRow
 	if err := r.db.GetContext(ctx, &payment, `
@@ -228,6 +259,42 @@ func nullableString(value string) any {
 
 func isNotFound(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func cancelPaymentByOrderIDTx(ctx context.Context, tx *sqlx.Tx, orderID string) error {
+	var payment paymentRow
+	if err := tx.GetContext(ctx, &payment, `
+		SELECT id, order_id, amount, status, payment_mode, idempotency_key
+		FROM payments
+		WHERE order_id = $1
+	`, orderID); err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if payment.Status != model.PaymentStatusPending {
+		return nil
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE payments
+		SET status = $2, updated_at = now()
+		WHERE id = $1
+	`, payment.ID, model.PaymentStatusCancelled); err != nil {
+		return err
+	}
+
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO payment_attempts (id, payment_id, status, reason)
+		VALUES ($1, $2, $3, $4)
+	`, newID("pay_attempt"), payment.ID, model.PaymentStatusCancelled, nullableString("order_cancelled_event"))
+	return err
 }
 
 func rollback(tx *sqlx.Tx) {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 type ProductList struct {
@@ -19,6 +20,7 @@ type CatalogRepository interface {
 	ReserveStock(ctx context.Context, command model.ReserveStockCommand) (model.StockReservation, error)
 	ReleaseStock(ctx context.Context, orderID string) (model.StockReservation, error)
 	CommitStock(ctx context.Context, orderID string) (model.StockReservation, error)
+	ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error)
 }
 
 type ProductCache interface {

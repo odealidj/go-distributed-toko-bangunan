@@ -17,8 +17,10 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/adapter/outbound/postgres"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/application/saga"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/application/usecase"
+	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/application/worker"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
@@ -52,10 +54,20 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 	}
 
 	repository := postgres.NewOrderRepository(pool)
+	outboxRepository := postgres.NewOutboxRepository(pool)
 	inventoryClient := outboundgrpc.NewInventoryClient(inventoryv1.NewInventoryServiceClient(inventoryConn))
 	paymentClient := outboundgrpc.NewPaymentClient(paymentv1.NewPaymentServiceClient(paymentConn))
 	checkout := saga.NewCheckoutOrchestrator(repository, inventoryClient, paymentClient)
 	order := usecase.NewOrder(checkout)
+	producer, err := messaging.NewKgoProducer(cfg.KafkaBrokers)
+	if err != nil {
+		_ = paymentConn.Close()
+		_ = inventoryConn.Close()
+		pool.Close()
+		return nil, nil, err
+	}
+	outboxPublisher := worker.NewOutboxPublisher(outboxRepository, producer)
+	workerCtx, stopWorker := context.WithCancel(context.Background())
 
 	httpServer := khttp.NewServer(
 		khttp.Address(cfg.HTTPAddr),
@@ -71,8 +83,19 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		kratos.Name(cfg.ServiceName),
 		kratos.Server(httpServer),
 		kratos.Logger(log.DefaultLogger),
+		kratos.AfterStart(func(context.Context) error {
+			go outboxPublisher.Run(workerCtx)
+			return nil
+		}),
+		kratos.BeforeStop(func(context.Context) error {
+			stopWorker()
+			producer.Close()
+			return nil
+		}),
 	)
 	cleanup := func() {
+		stopWorker()
+		producer.Close()
 		_ = paymentConn.Close()
 		_ = inventoryConn.Close()
 		pool.Close()

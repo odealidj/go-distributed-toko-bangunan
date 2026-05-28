@@ -2,7 +2,10 @@ module github.com/odealidj/go-distributed-toko-bangunan/shared
 
 go 1.22
 
-require github.com/go-kratos/kratos/v2 v2.9.2
+require (
+	github.com/go-kratos/kratos/v2 v2.9.2
+	github.com/twmb/franz-go v1.18.0
+)
 
 require (
 	github.com/go-kratos/aegis v0.2.0 // indirect
@@ -10,7 +13,10 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
+	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/pierrec/lz4/v4 v4.1.21 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.9.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240102182953-50ed04b92917 // indirect
 	google.golang.org/grpc v1.61.1 // indirect

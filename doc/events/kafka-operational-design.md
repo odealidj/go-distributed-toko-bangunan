@@ -162,10 +162,10 @@ Outbox table tetap menjadi audit lokal event yang dipublish.
 
 ## 11. Topic Creation
 
-Topic dibuat eksplisit melalui script:
+Topic dibuat eksplisit melalui Make target:
 
 ```text
-scripts/create-topics.sh
+make kafka-topics
 ```
 
 Command contoh:
@@ -173,6 +173,15 @@ Command contoh:
 ```text
 kafka-topics --bootstrap-server kafka:9092 --create --topic order.events --partitions 3 --replication-factor 1
 ```
+
+Untuk local Compose, topic yang dibuat adalah:
+
+- `order.events`
+- `inventory.events`
+- `payment.events`
+
+Pada phase 05, `order-service` mempublish event dari `outbox_events` ke `order.events`.
+`catalog-inventory-service` dan `payment-service` mengonsumsi `order.events` memakai manual offset commit setelah event berhasil masuk `inbox_events` dan business mutation selesai.
 
 ## 12. Observability
 
@@ -209,4 +218,3 @@ Yang tetap bisa dipelajari:
 - DLQ;
 - idempotent consumer;
 - outbox publisher.
-

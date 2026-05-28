@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 func TestCreatePaymentNormalizesMode(t *testing.T) {
@@ -59,4 +60,8 @@ func (r *fakeRepository) GetPaymentByID(context.Context, string) (model.Payment,
 
 func (r *fakeRepository) CancelPayment(context.Context, model.CancelPaymentCommand) (model.Payment, error) {
 	return model.Payment{}, nil
+}
+
+func (r *fakeRepository) ProcessOrderEvent(context.Context, messaging.EventEnvelope) (bool, error) {
+	return false, nil
 }

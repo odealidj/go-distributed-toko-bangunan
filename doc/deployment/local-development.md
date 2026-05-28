@@ -161,6 +161,7 @@ Untuk debug service dari IDE/local terminal:
 
 ```text
 make infra-up
+make kafka-topics
 make inventory-run
 make payment-run
 make order-run

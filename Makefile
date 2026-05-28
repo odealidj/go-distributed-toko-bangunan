@@ -12,7 +12,7 @@ INVENTORY_DATABASE_URL ?= postgres://toko:toko@localhost:5432/inventory_db?sslmo
 PAYMENT_DATABASE_URL ?= postgres://toko:toko@localhost:5432/payment_db?sslmode=disable
 ORDER_DATABASE_URL ?= postgres://toko:toko@localhost:5432/order_db?sslmode=disable
 
-.PHONY: infra-up infra-down infra-logs infra-ps up down \
+.PHONY: infra-up infra-down infra-logs infra-ps kafka-topics up down \
 	order inventory payment \
 	order-run inventory-run payment-run \
 	proto-test shared-test order-test inventory-test payment-test test-all \
@@ -32,6 +32,11 @@ infra-logs:
 
 infra-ps:
 	$(COMPOSE) ps
+
+kafka-topics:
+	$(COMPOSE) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.events --partitions 3 --replication-factor 1
+	$(COMPOSE) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic inventory.events --partitions 3 --replication-factor 1
+	$(COMPOSE) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic payment.events --partitions 3 --replication-factor 1
 
 up:
 	$(COMPOSE) --profile app up -d

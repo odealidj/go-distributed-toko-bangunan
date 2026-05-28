@@ -23,3 +23,9 @@ type InventoryClient interface {
 type PaymentClient interface {
 	CreatePayment(ctx context.Context, orderID string, amount int64, paymentMode, correlationID, causationID, idempotencyKey string) (model.Payment, error)
 }
+
+type OutboxRepository interface {
+	ListPending(ctx context.Context, limit int32) ([]model.OutboxEvent, error)
+	MarkPublished(ctx context.Context, eventID string) error
+	MarkFailed(ctx context.Context, eventID string) error
+}

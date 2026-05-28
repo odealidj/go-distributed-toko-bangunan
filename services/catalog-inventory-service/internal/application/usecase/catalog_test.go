@@ -6,6 +6,7 @@ import (
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 func TestListProductsUsesCache(t *testing.T) {
@@ -98,6 +99,10 @@ func (r *fakeRepository) ReleaseStock(context.Context, string) (model.StockReser
 
 func (r *fakeRepository) CommitStock(context.Context, string) (model.StockReservation, error) {
 	return model.StockReservation{}, nil
+}
+
+func (r *fakeRepository) ProcessOrderEvent(context.Context, messaging.EventEnvelope) (bool, error) {
+	return false, nil
 }
 
 type fakeCache struct {

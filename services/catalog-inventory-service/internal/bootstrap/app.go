@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	inventoryv1 "github.com/odealidj/go-distributed-toko-bangunan/proto/inventory/v1"
 	inventorygrpc "github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/inbound/grpc"
+	inventorykafka "github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/inbound/kafka"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/inbound/rest"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/outbound/postgres"
 	redisadapter "github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/outbound/redis"
@@ -40,6 +41,13 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 	repository := postgres.NewCatalogRepository(pool)
 	cache := redisadapter.NewProductCache(redisClient)
 	catalog := usecase.NewCatalog(repository, cache)
+	orderEventsConsumer, err := inventorykafka.NewOrderEventsConsumer(cfg, catalog)
+	if err != nil {
+		_ = redisClient.Close()
+		pool.Close()
+		return nil, nil, err
+	}
+	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 
 	httpServer := khttp.NewServer(
 		khttp.Address(cfg.HTTPAddr),
@@ -64,8 +72,23 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		kratos.Name(cfg.ServiceName),
 		kratos.Server(httpServer, grpcServer),
 		kratos.Logger(log.DefaultLogger),
+		kratos.AfterStart(func(context.Context) error {
+			go func() {
+				if err := orderEventsConsumer.Run(consumerCtx); err != nil {
+					log.Errorf("order events consumer berhenti: %v", err)
+				}
+			}()
+			return nil
+		}),
+		kratos.BeforeStop(func(context.Context) error {
+			stopConsumer()
+			orderEventsConsumer.Close()
+			return nil
+		}),
 	)
 	cleanup := func() {
+		stopConsumer()
+		orderEventsConsumer.Close()
 		redisClient.Close()
 		pool.Close()
 	}

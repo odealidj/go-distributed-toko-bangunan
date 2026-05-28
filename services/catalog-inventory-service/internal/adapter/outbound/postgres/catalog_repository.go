@@ -8,10 +8,12 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/outbound/postgres/sqlc"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 type CatalogRepository struct {
@@ -186,6 +188,52 @@ func (r *CatalogRepository) transitionReservation(ctx context.Context, orderID, 
 	defer rollback(ctx, tx)
 
 	q := r.queries.WithTx(tx)
+	result, err := r.transitionReservationTx(ctx, q, orderID, targetStatus)
+	if err != nil {
+		return model.StockReservation{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return model.StockReservation{}, err
+	}
+	return result, nil
+}
+
+func (r *CatalogRepository) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer rollback(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO inbox_events (event_id, event_type, aggregate_id, correlation_id, traceparent)
+		VALUES ($1, $2, $3, $4, $5)
+	`, event.EventID, event.EventType, event.AggregateID, event.CorrelationID, nil); err != nil {
+		if isUniqueViolation(err) {
+			return true, tx.Commit(ctx)
+		}
+		return false, err
+	}
+
+	q := r.queries.WithTx(tx)
+	switch event.EventType {
+	case "OrderConfirmed":
+		if _, err := r.transitionReservationTx(ctx, q, event.AggregateID, model.ReservationStatusCommitted); err != nil {
+			return false, err
+		}
+	case "OrderCancelled":
+		if _, err := r.transitionReservationTx(ctx, q, event.AggregateID, model.ReservationStatusReleased); err != nil {
+			return false, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func (r *CatalogRepository) transitionReservationTx(ctx context.Context, q *sqlc.Queries, orderID, targetStatus string) (model.StockReservation, error) {
 	reservation, err := q.GetReservationByOrderID(ctx, orderID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.StockReservation{}, model.ErrReservationNotFound
@@ -196,12 +244,12 @@ func (r *CatalogRepository) transitionReservation(ctx context.Context, orderID, 
 	if reservation.Status == targetStatus {
 		result := reservationFromOrderRow(reservation)
 		result.Items = reservationItemsToModelItems(ctx, q, reservation.ID)
-		return result, tx.Commit(ctx)
+		return result, nil
 	}
 	if reservation.Status != model.ReservationStatusReserved {
 		result := reservationFromOrderRow(reservation)
 		result.Items = reservationItemsToModelItems(ctx, q, reservation.ID)
-		return result, tx.Commit(ctx)
+		return result, nil
 	}
 
 	items, err := q.ListReservationItems(ctx, reservation.ID)
@@ -236,12 +284,14 @@ func (r *CatalogRepository) transitionReservation(ctx context.Context, orderID, 
 	if err != nil {
 		return model.StockReservation{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return model.StockReservation{}, err
-	}
 	result := reservationFromUpdateRow(updated)
 	result.Items = reservationRowsToModelItems(items)
 	return result, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func rollback(ctx context.Context, tx pgx.Tx) {

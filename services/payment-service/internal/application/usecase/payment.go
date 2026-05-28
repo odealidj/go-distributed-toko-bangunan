@@ -6,6 +6,7 @@ import (
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 type PaymentUseCase struct {
@@ -46,6 +47,10 @@ func (u *PaymentUseCase) CancelPayment(ctx context.Context, command model.Cancel
 		return model.Payment{}, model.ErrInvalidInput
 	}
 	return u.repository.CancelPayment(ctx, command)
+}
+
+func (u *PaymentUseCase) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	return u.repository.ProcessOrderEvent(ctx, event)
 }
 
 func normalizePaymentMode(mode string) string {

@@ -130,6 +130,7 @@ type OutboxEvent struct {
 	Traceparent   string
 	Payload       []byte
 	Status        string
+	CreatedAt     time.Time
 }
 
 type SagaTransition struct {

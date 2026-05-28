@@ -7,6 +7,7 @@ import (
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 type CatalogUseCase struct {
@@ -109,6 +110,10 @@ func (u *CatalogUseCase) CommitStock(ctx context.Context, orderID string) (model
 		u.invalidateStockCache(ctx, reservation.Items)
 	}
 	return reservation, err
+}
+
+func (u *CatalogUseCase) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	return u.repository.ProcessOrderEvent(ctx, event)
 }
 
 func normalizeFilter(filter model.ProductFilter) model.ProductFilter {

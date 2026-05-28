@@ -14,6 +14,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	paymentv1 "github.com/odealidj/go-distributed-toko-bangunan/proto/payment/v1"
 	paymentgrpc "github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/adapter/inbound/grpc"
+	paymentkafka "github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/adapter/inbound/kafka"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/adapter/inbound/rest"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/adapter/outbound/postgres"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/usecase"
@@ -37,6 +38,12 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 
 	repository := postgres.NewPaymentRepository(db)
 	payment := usecase.NewPayment(repository)
+	orderEventsConsumer, err := paymentkafka.NewOrderEventsConsumer(cfg, payment)
+	if err != nil {
+		_ = db.Close()
+		return nil, nil, err
+	}
+	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 
 	httpServer := khttp.NewServer(
 		khttp.Address(cfg.HTTPAddr),
@@ -61,8 +68,23 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		kratos.Name(cfg.ServiceName),
 		kratos.Server(httpServer, grpcServer),
 		kratos.Logger(log.DefaultLogger),
+		kratos.AfterStart(func(context.Context) error {
+			go func() {
+				if err := orderEventsConsumer.Run(consumerCtx); err != nil {
+					log.Errorf("order events consumer berhenti: %v", err)
+				}
+			}()
+			return nil
+		}),
+		kratos.BeforeStop(func(context.Context) error {
+			stopConsumer()
+			orderEventsConsumer.Close()
+			return nil
+		}),
 	)
 	cleanup := func() {
+		stopConsumer()
+		orderEventsConsumer.Close()
 		_ = db.Close()
 	}
 	return app, cleanup, nil
