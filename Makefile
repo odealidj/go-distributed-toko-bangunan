@@ -1,19 +1,21 @@
 COMPOSE ?= podman compose
 GO ?= go
+GOFLAGS ?= -mod=readonly
 GOOSE ?= goose
 SQLC ?= sqlc
 
 ORDER_DIR := services/order-service
 INVENTORY_DIR := services/catalog-inventory-service
 PAYMENT_DIR := services/payment-service
+PROTO_FILES := proto/inventory/v1/inventory.proto proto/order/v1/order.proto proto/payment/v1/payment.proto
 
 .PHONY: infra-up infra-down infra-logs infra-ps up down \
 	order inventory payment \
 	order-run inventory-run payment-run \
-	shared-test order-test inventory-test payment-test test-all \
+	proto-test shared-test order-test inventory-test payment-test test-all \
 	order-build inventory-build payment-build build-all \
 	order-migrate inventory-migrate payment-migrate migrate \
-	proto sqlc generate test
+	proto proto-validate sqlc generate test
 
 infra-up:
 	$(COMPOSE) up -d postgres redis kafka kafka-ui otel-collector jaeger
@@ -40,38 +42,41 @@ inventory: inventory-run
 payment: payment-run
 
 order-run:
-	cd $(ORDER_DIR) && $(GO) run ./cmd/api
+	cd $(ORDER_DIR) && $(GO) run $(GOFLAGS) ./cmd/api
 
 inventory-run:
-	cd $(INVENTORY_DIR) && $(GO) run ./cmd/api
+	cd $(INVENTORY_DIR) && $(GO) run $(GOFLAGS) ./cmd/api
 
 payment-run:
-	cd $(PAYMENT_DIR) && $(GO) run ./cmd/api
+	cd $(PAYMENT_DIR) && $(GO) run $(GOFLAGS) ./cmd/api
 
 shared-test:
-	cd shared && $(GO) test ./...
+	cd shared && $(GO) test $(GOFLAGS) ./...
+
+proto-test:
+	cd proto && $(GO) test $(GOFLAGS) ./...
 
 order-test:
-	cd $(ORDER_DIR) && $(GO) test ./...
+	cd $(ORDER_DIR) && $(GO) test $(GOFLAGS) ./...
 
 inventory-test:
-	cd $(INVENTORY_DIR) && $(GO) test ./...
+	cd $(INVENTORY_DIR) && $(GO) test $(GOFLAGS) ./...
 
 payment-test:
-	cd $(PAYMENT_DIR) && $(GO) test ./...
+	cd $(PAYMENT_DIR) && $(GO) test $(GOFLAGS) ./...
 
-test-all: shared-test order-test inventory-test payment-test
+test-all: proto-test shared-test order-test inventory-test payment-test
 
 test: test-all
 
 order-build:
-	cd $(ORDER_DIR) && $(GO) build -o ../../bin/order-service ./cmd/api
+	cd $(ORDER_DIR) && $(GO) build $(GOFLAGS) -o ../../bin/order-service ./cmd/api
 
 inventory-build:
-	cd $(INVENTORY_DIR) && $(GO) build -o ../../bin/catalog-inventory-service ./cmd/api
+	cd $(INVENTORY_DIR) && $(GO) build $(GOFLAGS) -o ../../bin/catalog-inventory-service ./cmd/api
 
 payment-build:
-	cd $(PAYMENT_DIR) && $(GO) build -o ../../bin/payment-service ./cmd/api
+	cd $(PAYMENT_DIR) && $(GO) build $(GOFLAGS) -o ../../bin/payment-service ./cmd/api
 
 build-all: order-build inventory-build payment-build
 
@@ -87,7 +92,10 @@ payment-migrate:
 migrate: order-migrate inventory-migrate payment-migrate
 
 proto:
-	@echo "proto generation belum diaktifkan"
+	protoc --proto_path=proto --go_out=proto --go_opt=paths=source_relative --go-grpc_out=proto --go-grpc_opt=paths=source_relative $(PROTO_FILES)
+
+proto-validate:
+	protoc --proto_path=proto --descriptor_set_out=/tmp/toko-bangunan-proto.pb $(PROTO_FILES)
 
 sqlc:
 	cd $(ORDER_DIR) && $(SQLC) generate

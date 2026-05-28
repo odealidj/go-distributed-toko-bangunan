@@ -4,6 +4,7 @@ ARG SERVICE_PATH
 WORKDIR /src
 
 COPY go.work go.work.sum ./
+COPY proto ./proto
 COPY shared ./shared
 COPY services ./services
 

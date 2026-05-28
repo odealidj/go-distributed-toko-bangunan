@@ -1,6 +1,7 @@
 go 1.22
 
 use (
+	./proto
 	./services/catalog-inventory-service
 	./services/order-service
 	./services/payment-service

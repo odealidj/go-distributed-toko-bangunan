@@ -8,6 +8,7 @@ import (
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/adapter/inbound/rest"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
 )
 
 func NewApp(cfg config.ServiceConfig) *kratos.App {
@@ -17,6 +18,7 @@ func NewApp(cfg config.ServiceConfig) *kratos.App {
 			recovery.Recovery(),
 			tracing.Server(),
 		),
+		khttp.Filter(httpx.Correlation()),
 	)
 	rest.RegisterRoutes(httpServer, cfg)
 
