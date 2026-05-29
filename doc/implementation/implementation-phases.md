@@ -364,7 +364,7 @@ Acceptance criteria:
 - test result bisa dipakai untuk cerita portfolio;
 - test tidak membutuhkan manual step selain infra lokal.
 
-## 12. Phase 08 - CI, K6, Metrics, dan Portfolio README
+## 12. Phase 08 - CI, K6, dan Portfolio README
 
 Branch:
 
@@ -384,7 +384,6 @@ Cakupan:
   - proto validation;
   - docker build;
 - K6 smoke/load test;
-- resource metrics stack jika sudah siap;
 - README portfolio;
 - demo script final;
 - ADR index final.
@@ -402,7 +401,79 @@ Acceptance criteria:
 - K6 smoke test bisa membuktikan endpoint utama sehat;
 - README menjelaskan Saga, outbox/inbox, idempotency, tracing, dan tradeoff.
 
-## 13. Urutan Eksekusi Praktis
+## 13. Phase 09 - Metrics Dashboard
+
+Branch:
+
+```text
+phase/09-metrics-dashboard
+```
+
+Tujuan:
+
+Menambahkan metrics stack lokal dan dashboard dasar agar load test dan health runtime bisa divisualisasikan.
+
+Cakupan:
+
+- endpoint `/metrics` pada service;
+- Prometheus local stack;
+- Grafana provisioning;
+- node-exporter;
+- postgres-exporter;
+- redis-exporter;
+- kafka-exporter;
+- dashboard overview awal;
+- make target metrics.
+
+Rujukan:
+
+- `doc/observability/metrics-dashboard.md`
+- `doc/deployment/local-development.md`
+- `doc/deployment/docker-compose-architecture.md`
+
+Acceptance criteria:
+
+- `make metrics-up` berhasil;
+- Prometheus scrape service dan exporter;
+- Grafana dashboard awal tersedia;
+- CPU/RAM host dan process memory service terlihat.
+
+## 14. Phase 10 - Kafka DLQ dan Retry
+
+Branch:
+
+```text
+phase/10-kafka-dlq-retry
+```
+
+Tujuan:
+
+Membuat Kafka consumer lebih production-like dengan retry/backoff dan dead-letter queue.
+
+Cakupan:
+
+- consumer retry dengan exponential backoff;
+- klasifikasi non-retryable error;
+- poison message masuk DLQ;
+- commit offset setelah success atau publish DLQ sukses;
+- make target topic creation mencakup DLQ topic;
+- unit test untuk retry, DLQ, dan poison message;
+- dokumentasi operasional Kafka diperbarui.
+
+Rujukan:
+
+- `doc/events/kafka-operational-design.md`
+- `doc/testing/testing-strategy.md`
+- `doc/roadmap/production-like-implementation-roadmap.md`
+
+Acceptance criteria:
+
+- malformed Kafka payload dipublish ke `*.dlq`;
+- handler error diretry sesuai limit;
+- offset tidak di-commit sebelum success atau DLQ publish;
+- test unit membuktikan retry dan DLQ path.
+
+## 15. Urutan Eksekusi Praktis
 
 Urutan kerja yang direkomendasikan:
 
@@ -414,6 +485,8 @@ Urutan kerja yang direkomendasikan:
 6. `phase/06-observability`
 7. `phase/07-testing-failure-scenario`
 8. `phase/08-ci-performance-portfolio`
+9. `phase/09-metrics-dashboard`
+10. `phase/10-kafka-dlq-retry`
 
 Alasan:
 
@@ -421,4 +494,3 @@ Alasan:
 - inventory dan payment dibuat sebelum order Saga karena Saga membutuhkan downstream;
 - outbox/inbox dan Kafka dipasang setelah local transaction behavior jelas;
 - observability dan testing diperkuat setelah flow utama benar.
-

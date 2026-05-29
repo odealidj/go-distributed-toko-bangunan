@@ -152,6 +152,7 @@ Aturan:
 - Manual offset commit hanya terjadi setelah local transaction sukses.
 - Duplicate event dengan `event_id` sama tidak memicu business mutation kedua.
 - Poison event masuk DLQ setelah retry limit.
+- Handler error retry dengan backoff lalu masuk DLQ setelah limit.
 
 ### gRPC integration
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -20,6 +22,8 @@ const (
 	TopicInventoryEvents = "inventory.events"
 	TopicPaymentEvents   = "payment.events"
 )
+
+const defaultDLQSuffix = ".dlq"
 
 type Producer interface {
 	Publish(ctx context.Context, topic string, key string, envelope EventEnvelope) error
@@ -98,12 +102,35 @@ func (p *KgoProducer) Close() {
 
 type EventHandler func(context.Context, EventEnvelope) error
 
-type Consumer struct {
-	client  *kgo.Client
-	handler EventHandler
+type ConsumerOptions struct {
+	ServiceName    string
+	MaxRetries     int
+	InitialBackoff time.Duration
+	DLQSuffix      string
 }
 
-func NewConsumer(brokers string, topic string, group string, handler EventHandler) (*Consumer, error) {
+type DLQMessage struct {
+	OriginalTopic     string            `json:"original_topic"`
+	OriginalPartition int32             `json:"original_partition"`
+	OriginalOffset    int64             `json:"original_offset"`
+	OriginalKey       string            `json:"original_key,omitempty"`
+	OriginalHeaders   map[string]string `json:"original_headers"`
+	OriginalPayload   string            `json:"original_payload"`
+	ErrorMessage      string            `json:"error_message"`
+	FailedService     string            `json:"failed_service"`
+	FailedAt          time.Time         `json:"failed_at"`
+}
+
+type Consumer struct {
+	client        *kgo.Client
+	handler       EventHandler
+	options       ConsumerOptions
+	commitRecords func(context.Context, ...*kgo.Record) error
+	publishRecord func(context.Context, *kgo.Record) error
+	sleep         func(time.Duration)
+}
+
+func NewConsumer(brokers string, topic string, group string, handler EventHandler, options ConsumerOptions) (*Consumer, error) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(splitBrokers(brokers)...),
 		kgo.ConsumerGroup(group),
@@ -113,7 +140,19 @@ func NewConsumer(brokers string, topic string, group string, handler EventHandle
 	if err != nil {
 		return nil, err
 	}
-	return &Consumer{client: client, handler: handler}, nil
+	options = normalizeConsumerOptions(options)
+	return &Consumer{
+		client:  client,
+		handler: handler,
+		options: options,
+		commitRecords: func(ctx context.Context, records ...*kgo.Record) error {
+			return client.CommitRecords(ctx, records...)
+		},
+		publishRecord: func(ctx context.Context, record *kgo.Record) error {
+			return client.ProduceSync(ctx, record).FirstErr()
+		},
+		sleep: time.Sleep,
+	}, nil
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
@@ -129,50 +168,120 @@ func (c *Consumer) Run(ctx context.Context) error {
 		iter := fetches.RecordIter()
 		for !iter.Done() {
 			record := iter.Next()
-			var envelope EventEnvelope
-			if err := json.Unmarshal(record.Value, &envelope); err != nil {
+			if err := c.handleRecord(ctx, record); err != nil {
 				return err
 			}
-
-			carrier := kafkaHeadersCarrier(record.Headers)
-			messageCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
-			messageCtx = observability.WithRequestScope(
-				messageCtx,
-				observability.NewExecutionID("kfk"),
-				firstNonEmpty(envelope.CorrelationID, carrier.Get("x-correlation-id")),
-			)
-			messageCtx, span := kafkaTracer.Start(messageCtx, "Kafka consume "+record.Topic+" "+envelope.EventType,
-				trace.WithSpanKind(trace.SpanKindConsumer),
-				trace.WithAttributes(
-					attribute.String("messaging.system", "kafka"),
-					attribute.String("messaging.destination.name", record.Topic),
-					attribute.String("messaging.operation", "consume"),
-					attribute.String("event_id", envelope.EventID),
-					attribute.String("event_type", envelope.EventType),
-					attribute.String("order_id", envelope.AggregateID),
-					attribute.String("correlation_id", envelope.CorrelationID),
-				),
-			)
-
-			if err := c.handler(messageCtx, envelope); err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-				span.End()
-				return err
-			}
-			if err := c.client.CommitRecords(messageCtx, record); err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-				span.End()
-				return err
-			}
-			span.End()
 		}
 	}
 }
 
 func (c *Consumer) Close() {
 	c.client.Close()
+}
+
+func (c *Consumer) handleRecord(ctx context.Context, record *kgo.Record) error {
+	carrier := kafkaHeadersCarrier(record.Headers)
+	messageCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
+
+	var envelope EventEnvelope
+	unmarshalErr := json.Unmarshal(record.Value, &envelope)
+	messageCtx = observability.WithRequestScope(
+		messageCtx,
+		observability.NewExecutionID("kfk"),
+		firstNonEmpty(envelope.CorrelationID, carrier.Get("x-correlation-id")),
+	)
+	messageCtx, span := kafkaTracer.Start(messageCtx, "Kafka consume "+record.Topic+" "+firstNonEmpty(envelope.EventType, carrier.Get("x-event-type")),
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "kafka"),
+			attribute.String("messaging.destination.name", record.Topic),
+			attribute.String("messaging.operation", "consume"),
+			attribute.String("event_id", firstNonEmpty(envelope.EventID, carrier.Get("x-event-id"))),
+			attribute.String("event_type", firstNonEmpty(envelope.EventType, carrier.Get("x-event-type"))),
+			attribute.String("order_id", envelope.AggregateID),
+			attribute.String("correlation_id", firstNonEmpty(envelope.CorrelationID, carrier.Get("x-correlation-id"))),
+		),
+	)
+	defer span.End()
+
+	if unmarshalErr != nil {
+		span.RecordError(unmarshalErr)
+		span.SetStatus(codes.Error, unmarshalErr.Error())
+		return c.sendToDLQAndCommit(messageCtx, record, unmarshalErr)
+	}
+
+	if err := c.processWithRetry(messageCtx, envelope); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return c.sendToDLQAndCommit(messageCtx, record, err)
+	}
+	if err := c.commitRecords(messageCtx, record); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (c *Consumer) processWithRetry(ctx context.Context, envelope EventEnvelope) error {
+	var lastErr error
+	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
+		if err := c.handler(ctx, envelope); err != nil {
+			lastErr = err
+			if isNonRetryable(err) {
+				return err
+			}
+			if attempt == c.options.MaxRetries {
+				break
+			}
+			c.sleep(backoffDelay(c.options.InitialBackoff, attempt))
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+func (c *Consumer) sendToDLQAndCommit(ctx context.Context, record *kgo.Record, err error) error {
+	if publishErr := c.publishDLQ(ctx, record, err); publishErr != nil {
+		return fmt.Errorf("publish dlq: %w", publishErr)
+	}
+	if commitErr := c.commitRecords(ctx, record); commitErr != nil {
+		return fmt.Errorf("commit dlq record: %w", commitErr)
+	}
+	return nil
+}
+
+func (c *Consumer) publishDLQ(ctx context.Context, record *kgo.Record, err error) error {
+	payload, marshalErr := json.Marshal(DLQMessage{
+		OriginalTopic:     record.Topic,
+		OriginalPartition: record.Partition,
+		OriginalOffset:    record.Offset,
+		OriginalKey:       string(record.Key),
+		OriginalHeaders:   headersToMap(record.Headers),
+		OriginalPayload:   string(record.Value),
+		ErrorMessage:      err.Error(),
+		FailedService:     c.options.ServiceName,
+		FailedAt:          time.Now().UTC(),
+	})
+	if marshalErr != nil {
+		return marshalErr
+	}
+
+	dlqRecord := &kgo.Record{
+		Topic: DLQTopic(record.Topic, c.options.DLQSuffix),
+		Key:   record.Key,
+		Value: payload,
+		Headers: []kgo.RecordHeader{
+			{Key: "x-original-topic", Value: []byte(record.Topic)},
+			{Key: "x-failed-service", Value: []byte(c.options.ServiceName)},
+			{Key: "x-error-message", Value: []byte(err.Error())},
+		},
+	}
+	for _, header := range record.Headers {
+		dlqRecord.Headers = append(dlqRecord.Headers, header)
+	}
+	return c.publishRecord(ctx, dlqRecord)
 }
 
 func TopicForAggregate(aggregateType string) string {
@@ -199,6 +308,69 @@ func splitBrokers(brokers string) []string {
 	}
 	if len(result) == 0 {
 		return []string{"localhost:29092"}
+	}
+	return result
+}
+
+func DLQTopic(topic string, suffix string) string {
+	if suffix == "" {
+		suffix = defaultDLQSuffix
+	}
+	return topic + suffix
+}
+
+func normalizeConsumerOptions(options ConsumerOptions) ConsumerOptions {
+	if options.MaxRetries < 0 {
+		options.MaxRetries = 0
+	}
+	if options.InitialBackoff <= 0 {
+		options.InitialBackoff = 250 * time.Millisecond
+	}
+	if options.DLQSuffix == "" {
+		options.DLQSuffix = defaultDLQSuffix
+	}
+	return options
+}
+
+func backoffDelay(initial time.Duration, attempt int) time.Duration {
+	delay := initial
+	for i := 0; i < attempt; i++ {
+		delay *= 2
+		if delay > 5*time.Second {
+			return 5 * time.Second
+		}
+	}
+	return delay
+}
+
+type nonRetryableError struct {
+	err error
+}
+
+func (e nonRetryableError) Error() string {
+	return e.err.Error()
+}
+
+func (e nonRetryableError) Unwrap() error {
+	return e.err
+}
+
+func MarkNonRetryable(err error) error {
+	if err == nil {
+		return nil
+	}
+	return nonRetryableError{err: err}
+}
+
+func isNonRetryable(err error) bool {
+	var target nonRetryableError
+	return errors.As(err, &target)
+}
+
+func headersToMap(headers []kgo.RecordHeader) map[string]string {
+	result := make(map[string]string, len(headers))
+	for _, header := range headers {
+		result[header.Key] = string(header.Value)
 	}
 	return result
 }

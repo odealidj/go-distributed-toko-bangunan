@@ -104,6 +104,16 @@ Jangan commit offset sebelum local transaction sukses.
 
 ## 8. Retry dan DLQ
 
+Implementasi lokal saat ini:
+
+- consumer retry memakai exponential backoff;
+- nilai default `KAFKA_MAX_RETRIES=3`;
+- nilai default `KAFKA_BACKOFF_MS=250`;
+- suffix DLQ default `KAFKA_DLQ_SUFFIX=.dlq`;
+- malformed payload langsung dipublish ke DLQ;
+- handler error diretry sampai limit, lalu dipublish ke DLQ;
+- offset original event baru di-commit setelah handler sukses atau publish DLQ sukses.
+
 Retry transient error dengan backoff.
 
 Jika retry limit tercapai:
@@ -179,6 +189,9 @@ Untuk local Compose, topic yang dibuat adalah:
 - `order.events`
 - `inventory.events`
 - `payment.events`
+- `order.events.dlq`
+- `inventory.events.dlq`
+- `payment.events.dlq`
 
 Pada phase 05, `order-service` mempublish event dari `outbox_events` ke `order.events`.
 `catalog-inventory-service` dan `payment-service` mengonsumsi `order.events` memakai manual offset commit setelah event berhasil masuk `inbox_events` dan business mutation selesai.

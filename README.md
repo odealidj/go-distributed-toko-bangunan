@@ -38,6 +38,7 @@ Project ini sengaja didesain untuk menunjukkan hal yang biasanya dicari saat int
 - pemisahan boundary service yang jelas;
 - orchestration Saga dengan compensation;
 - outbox/inbox pattern yang benar-benar jalan;
+- Kafka consumer retry dengan exponential backoff dan DLQ;
 - idempotency untuk HTTP command, gRPC command, dan Kafka consumer;
 - distributed tracing lintas REST, gRPC, Kafka, PostgreSQL, dan Redis;
 - command-line demo untuk success, failure, duplicate event, dan Redis down;
@@ -53,6 +54,17 @@ make infra-up
 make kafka-topics
 make up
 make inventory-seed
+```
+
+`make kafka-topics` membuat topic utama dan topic DLQ:
+
+```text
+order.events
+inventory.events
+payment.events
+order.events.dlq
+inventory.events.dlq
+payment.events.dlq
 ```
 
 Jika menjalankan service dari terminal lokal untuk debugging:

@@ -178,6 +178,9 @@ services:
       DATABASE_URL: postgres://toko:toko@postgres:5432/order_db?sslmode=disable
       REDIS_ADDR: redis:6379
       KAFKA_BROKERS: kafka:9092
+      KAFKA_MAX_RETRIES: "3"
+      KAFKA_BACKOFF_MS: "250"
+      KAFKA_DLQ_SUFFIX: ".dlq"
       INVENTORY_GRPC_ADDR: catalog-inventory-service:9001
       PAYMENT_GRPC_ADDR: payment-service:9002
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -208,6 +211,9 @@ services:
       DATABASE_URL: postgres://toko:toko@postgres:5432/inventory_db?sslmode=disable
       REDIS_ADDR: redis:6379
       KAFKA_BROKERS: kafka:9092
+      KAFKA_MAX_RETRIES: "3"
+      KAFKA_BACKOFF_MS: "250"
+      KAFKA_DLQ_SUFFIX: ".dlq"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8081:8081"
@@ -236,6 +242,9 @@ services:
       DATABASE_URL: postgres://toko:toko@postgres:5432/payment_db?sslmode=disable
       REDIS_ADDR: redis:6379
       KAFKA_BROKERS: kafka:9092
+      KAFKA_MAX_RETRIES: "3"
+      KAFKA_BACKOFF_MS: "250"
+      KAFKA_DLQ_SUFFIX: ".dlq"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8082:8082"

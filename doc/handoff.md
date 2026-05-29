@@ -31,13 +31,13 @@ Target utama:
 Branch aktif terakhir:
 
 ```text
-phase/08-ci-performance-portfolio
+phase/10-kafka-dlq-retry
 ```
 
 Commit terakhir:
 
 ```text
-9a06cf2 tambah ci dan k6
+cek `git log -1 --oneline` pada branch aktif
 ```
 
 Branch phase yang sudah dibuat:
@@ -51,6 +51,8 @@ phase/05-kafka-outbox-inbox
 phase/06-observability
 phase/07-testing-failure-scenario
 phase/08-ci-performance-portfolio
+phase/09-metrics-dashboard
+phase/10-kafka-dlq-retry
 ```
 
 ## 3. File dan Area yang Sudah Diubah
@@ -117,6 +119,7 @@ Keputusan implementasi:
 - REST response data memakai DTO eksplisit, bukan anonymous `map[string]any`.
 - `request_id` dan `correlation_id` dipropagasi lewat HTTP/gRPC/Kafka.
 - Kafka header membawa `traceparent`, `x-correlation-id`, `x-causation-id`, `x-event-id`, dan `x-event-type`.
+- Kafka consumer memakai exponential backoff retry dan publish ke DLQ setelah retry limit.
 - K6 test dijalankan via container image `grafana/k6`.
 - Local default memakai Podman, tetapi target `Makefile` bisa diganti ke Docker dengan `COMPOSE="docker compose"` atau `CONTAINER=docker`.
 
@@ -134,6 +137,8 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
   - Perbaikan: `test-e2e` menjalankan seed inventory demo di awal.
 - Script trace sempat salah payload request `POST /orders`.
   - Perbaikan: payload mengikuti DTO `customer` + `items`.
+- Metrics stack sempat gagal saat memakai cAdvisor pada Podman rootless Ubuntu.
+  - Perbaikan: diganti ke `node-exporter` agar stabil pada Podman dan Docker.
 
 ## 6. Langkah Berikutnya
 
@@ -144,10 +149,11 @@ Langkah paling masuk akal berikutnya:
 3. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
 4. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
 5. Ambil screenshot Jaeger trace untuk portfolio.
-6. Jika ingin lanjut production-like:
+6. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+7. Jika ingin lanjut production-like:
    - perluas dashboard Grafana;
-   - tambah DLQ dan retry policy yang lebih lengkap;
    - tambah GitHub Actions integration test dengan service container.
+   - tambah business metrics untuk outbox/inbox/DLQ.
 
 ## 7. Command yang Harus Dijalankan
 
@@ -253,6 +259,8 @@ Sudah terpenuhi:
 - README portfolio sudah diperkuat.
 - `/metrics` service sudah tersedia.
 - Metrics stack lokal dengan Prometheus/Grafana/node-exporter/exporter sudah tersedia.
+- Kafka consumer retry/backoff dan DLQ dasar sudah tersedia.
+- `make kafka-topics` membuat topic utama dan topic DLQ.
 
 Perlu diverifikasi di GitHub:
 
@@ -262,8 +270,6 @@ Perlu diverifikasi di GitHub:
 
 Belum selesai dan masih layak jadi phase berikutnya:
 
-- DLQ untuk poison event.
-- retry/backoff policy yang lebih eksplisit untuk Kafka consumer.
 - CI integration test dengan service container.
 - load/stress test tuning setelah baseline nyata.
 - perluasan dashboard Grafana dan dokumentasi screenshot hasil demo.

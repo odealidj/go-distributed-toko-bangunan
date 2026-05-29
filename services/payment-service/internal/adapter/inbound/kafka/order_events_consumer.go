@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/usecase"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
@@ -25,6 +26,12 @@ func NewOrderEventsConsumer(cfg config.ServiceConfig, payment *usecase.PaymentUs
 			}
 			slog.InfoContext(ctx, "kafka event processed", "event_id", event.EventID, "event_type", event.EventType, "order_id", event.AggregateID)
 			return nil
+		},
+		messaging.ConsumerOptions{
+			ServiceName:    cfg.ServiceName,
+			MaxRetries:     cfg.KafkaMaxRetries,
+			InitialBackoff: time.Duration(cfg.KafkaBackoffMs) * time.Millisecond,
+			DLQSuffix:      cfg.KafkaDLQSuffix,
 		},
 	)
 }
