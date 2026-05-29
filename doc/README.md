@@ -15,6 +15,7 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Tracing, OpenTelemetry, dan Kafka Idempotency](observability/tracing-and-idempotency.md)
 - [Metrics dan Resource Dashboard](observability/metrics-dashboard.md)
 - [Roadmap Implementasi Production-Like](roadmap/production-like-implementation-roadmap.md)
+- [Handoff Project](handoff.md)
 - [Architecture Decision Records](adr/README.md)
 
 ## Spesifikasi Machine-Readable

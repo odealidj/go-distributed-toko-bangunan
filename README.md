@@ -143,3 +143,4 @@ scripts/
 - [Performance Testing K6](doc/testing/performance-testing-k6.md)
 - [Tracing dan Idempotency](doc/observability/tracing-and-idempotency.md)
 - [ADR Index](doc/adr/README.md)
+- [Handoff Project](doc/handoff.md)
