@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - 'phase/**'
+  pull_request:
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.0'
+
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.3'
+
+      - name: Verify proto contracts
+        run: make proto-validate
+
+      - name: Run unit tests
+        run: make test-unit
+
+      - name: Build all services
+        run: make build-all
+
+  docker-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service_name: order-service
+            service_path: services/order-service
+          - service_name: catalog-inventory-service
+            service_path: services/catalog-inventory-service
+          - service_name: payment-service
+            service_path: services/payment-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build container image
+        run: |
+          docker build \
+            --file deployments/docker/service.Dockerfile \
+            --build-arg SERVICE_PATH=${{ matrix.service_path }} \
+            --tag ${{ matrix.service_name }}:ci .

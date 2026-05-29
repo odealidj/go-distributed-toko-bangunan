@@ -218,3 +218,29 @@ make test-e2e
 - payment failed compensation;
 - duplicate Kafka event idempotency;
 - fallback saat Redis tidak tersedia.
+
+## 11. Performance Smoke dan Load Test
+
+Seed data load test:
+
+```text
+make perf-seed
+```
+
+Jalankan K6 smoke:
+
+```text
+make perf-smoke
+```
+
+Jalankan K6 load:
+
+```text
+make perf-load
+```
+
+Default runner memakai container runtime lokal:
+
+```text
+CONTAINER=podman
+```

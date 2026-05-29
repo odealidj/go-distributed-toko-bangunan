@@ -1,8 +1,12 @@
 COMPOSE ?= podman compose
+CONTAINER ?= podman
 GO ?= go
 GOFLAGS ?= -mod=readonly
 GOOSE ?= goose
 SQLC ?= sqlc
+K6_IMAGE ?= docker.io/grafana/k6:0.49.0
+K6_ORDER_BASE_URL ?= http://127.0.0.1:8080
+K6_CATALOG_BASE_URL ?= http://127.0.0.1:8081
 
 ORDER_DIR := services/order-service
 INVENTORY_DIR := services/catalog-inventory-service
@@ -16,10 +20,11 @@ ORDER_DATABASE_URL ?= postgres://toko:toko@localhost:5432/order_db?sslmode=disab
 	order inventory payment \
 	order-run inventory-run payment-run \
 	trace-verify test-unit test-integration test-e2e \
+	perf-seed perf-smoke perf-load perf-stress perf-spike perf-soak \
 	proto-test shared-test order-test inventory-test payment-test test-all \
 	order-build inventory-build payment-build build-all \
 	order-migrate inventory-migrate payment-migrate migrate \
-	order-migrate-compose inventory-migrate-compose payment-migrate-compose inventory-seed seed \
+	order-migrate-compose inventory-migrate-compose payment-migrate-compose inventory-seed inventory-seed-load seed \
 	proto proto-validate sqlc generate test
 
 infra-up:
@@ -129,7 +134,42 @@ migrate: order-migrate inventory-migrate payment-migrate
 inventory-seed:
 	$(COMPOSE) exec -T postgres psql -U toko -d inventory_db < $(INVENTORY_DIR)/seeds/001_demo_products.sql
 
+inventory-seed-load:
+	$(COMPOSE) exec -T postgres psql -U toko -d inventory_db < $(INVENTORY_DIR)/seeds/002_load_test_products.sql
+
 seed: inventory-seed
+
+perf-seed: inventory-seed inventory-seed-load
+
+perf-smoke: perf-seed
+	$(CONTAINER) run --rm --network host -v "$(CURDIR):/work" -w /work \
+		-e K6_ORDER_BASE_URL="$(K6_ORDER_BASE_URL)" \
+		-e K6_CATALOG_BASE_URL="$(K6_CATALOG_BASE_URL)" \
+		$(K6_IMAGE) run tests/performance/k6/smoke.js
+
+perf-load: perf-seed
+	$(CONTAINER) run --rm --network host -v "$(CURDIR):/work" -w /work \
+		-e K6_ORDER_BASE_URL="$(K6_ORDER_BASE_URL)" \
+		-e K6_CATALOG_BASE_URL="$(K6_CATALOG_BASE_URL)" \
+		$(K6_IMAGE) run tests/performance/k6/load.js
+
+perf-stress: perf-seed
+	$(CONTAINER) run --rm --network host -v "$(CURDIR):/work" -w /work \
+		-e K6_ORDER_BASE_URL="$(K6_ORDER_BASE_URL)" \
+		-e K6_CATALOG_BASE_URL="$(K6_CATALOG_BASE_URL)" \
+		$(K6_IMAGE) run tests/performance/k6/stress.js
+
+perf-spike: perf-seed
+	$(CONTAINER) run --rm --network host -v "$(CURDIR):/work" -w /work \
+		-e K6_ORDER_BASE_URL="$(K6_ORDER_BASE_URL)" \
+		-e K6_CATALOG_BASE_URL="$(K6_CATALOG_BASE_URL)" \
+		$(K6_IMAGE) run tests/performance/k6/spike.js
+
+perf-soak: perf-seed
+	$(CONTAINER) run --rm --network host -v "$(CURDIR):/work" -w /work \
+		-e K6_ORDER_BASE_URL="$(K6_ORDER_BASE_URL)" \
+		-e K6_CATALOG_BASE_URL="$(K6_CATALOG_BASE_URL)" \
+		$(K6_IMAGE) run tests/performance/k6/soak.js
 
 proto:
 	protoc --proto_path=proto --go_out=proto --go_opt=paths=source_relative --go-grpc_out=proto --go-grpc_opt=paths=source_relative $(PROTO_FILES)
