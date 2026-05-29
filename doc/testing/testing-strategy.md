@@ -108,6 +108,7 @@ Implementasi command line saat ini:
 make test-unit
 make test-integration
 make test-e2e
+make ci-integration COMPOSE="docker compose"
 ```
 
 Aturan:

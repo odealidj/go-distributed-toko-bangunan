@@ -16,7 +16,7 @@ INVENTORY_DATABASE_URL ?= postgres://toko:toko@localhost:5432/inventory_db?sslmo
 PAYMENT_DATABASE_URL ?= postgres://toko:toko@localhost:5432/payment_db?sslmode=disable
 ORDER_DATABASE_URL ?= postgres://toko:toko@localhost:5432/order_db?sslmode=disable
 
-.PHONY: infra-up infra-down infra-logs infra-ps metrics-up metrics-down metrics-logs kafka-topics up down \
+.PHONY: infra-up infra-down infra-logs infra-ps metrics-up metrics-down metrics-logs kafka-topics up down ci-integration \
 	order inventory payment \
 	order-run inventory-run payment-run \
 	trace-verify test-unit test-integration test-e2e \
@@ -61,6 +61,9 @@ up:
 
 down:
 	$(COMPOSE) --profile app down
+
+ci-integration:
+	./scripts/ci-integration.sh
 
 order: order-run
 

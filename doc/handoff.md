@@ -31,7 +31,7 @@ Target utama:
 Branch aktif terakhir:
 
 ```text
-phase/10-kafka-dlq-retry
+phase/11-ci-integration
 ```
 
 Commit terakhir:
@@ -53,6 +53,7 @@ phase/07-testing-failure-scenario
 phase/08-ci-performance-portfolio
 phase/09-metrics-dashboard
 phase/10-kafka-dlq-retry
+phase/11-ci-integration
 ```
 
 ## 3. File dan Area yang Sudah Diubah
@@ -121,6 +122,7 @@ Keputusan implementasi:
 - Kafka header membawa `traceparent`, `x-correlation-id`, `x-causation-id`, `x-event-id`, dan `x-event-type`.
 - Kafka consumer memakai exponential backoff retry dan publish ke DLQ setelah retry limit.
 - K6 test dijalankan via container image `grafana/k6`.
+- CI integration stack dijalankan lewat `scripts/ci-integration.sh` dengan `docker compose`.
 - Local default memakai Podman, tetapi target `Makefile` bisa diganti ke Docker dengan `COMPOSE="docker compose"` atau `CONTAINER=docker`.
 
 ## 5. Error Terakhir dan Statusnya
@@ -186,6 +188,7 @@ make proto-validate
 ```bash
 make test-integration
 make test-e2e
+make ci-integration COMPOSE="docker compose"
 ```
 
 ### Observability
@@ -261,6 +264,7 @@ Sudah terpenuhi:
 - Metrics stack lokal dengan Prometheus/Grafana/node-exporter/exporter sudah tersedia.
 - Kafka consumer retry/backoff dan DLQ dasar sudah tersedia.
 - `make kafka-topics` membuat topic utama dan topic DLQ.
+- CI workflow sudah menyiapkan job integration/e2e berbasis stack container.
 
 Perlu diverifikasi di GitHub:
 
@@ -270,7 +274,7 @@ Perlu diverifikasi di GitHub:
 
 Belum selesai dan masih layak jadi phase berikutnya:
 
-- CI integration test dengan service container.
+- verifikasi workflow baru benar-benar hijau di GitHub remote.
 - load/stress test tuning setelah baseline nyata.
 - perluasan dashboard Grafana dan dokumentasi screenshot hasil demo.
 

@@ -100,6 +100,7 @@ Failure scenario end-to-end:
 make test-unit
 make test-integration
 make test-e2e
+make ci-integration COMPOSE="docker compose"
 ```
 
 K6 smoke/load test:
@@ -141,6 +142,7 @@ Cakupan CI:
 
 - `make proto-validate`
 - `make test-unit`
+- `make ci-integration COMPOSE="docker compose"`
 - `make build-all`
 - docker build untuk tiga service
 

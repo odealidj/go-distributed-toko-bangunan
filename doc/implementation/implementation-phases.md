@@ -473,7 +473,40 @@ Acceptance criteria:
 - offset tidak di-commit sebelum success atau DLQ publish;
 - test unit membuktikan retry dan DLQ path.
 
-## 15. Urutan Eksekusi Praktis
+## 15. Phase 11 - CI Integration Stack
+
+Branch:
+
+```text
+phase/11-ci-integration
+```
+
+Tujuan:
+
+Menjalankan integration repository test dan E2E scenario utama di GitHub Actions dengan stack container yang benar-benar dinyalakan.
+
+Cakupan:
+
+- script bootstrap CI untuk infra, migration, topic creation, app startup, seed, integration test, dan E2E;
+- GitHub Actions job khusus integration/e2e;
+- failure artifact berupa compose logs;
+- make target `ci-integration`;
+- dokumentasi workflow CI diperbarui.
+
+Rujukan:
+
+- `.github/workflows/ci.yml`
+- `scripts/ci-integration.sh`
+- `doc/testing/testing-strategy.md`
+
+Acceptance criteria:
+
+- workflow CI menjalankan stack container, bukan hanya unit test;
+- integration repository test jalan di CI;
+- E2E success/failure/idempotency/redis-down scenario jalan di CI;
+- compose logs tersedia saat job gagal.
+
+## 16. Urutan Eksekusi Praktis
 
 Urutan kerja yang direkomendasikan:
 
@@ -487,6 +520,7 @@ Urutan kerja yang direkomendasikan:
 8. `phase/08-ci-performance-portfolio`
 9. `phase/09-metrics-dashboard`
 10. `phase/10-kafka-dlq-retry`
+11. `phase/11-ci-integration`
 
 Alasan:
 
