@@ -97,6 +97,20 @@ make perf-smoke
 make perf-load
 ```
 
+Metrics dashboard:
+
+```bash
+make metrics-up
+```
+
+Endpoint lokal:
+
+```text
+Prometheus: http://localhost:9090
+Grafana: http://localhost:3000
+Node exporter: http://localhost:9100/metrics
+```
+
 Jika memakai Docker sebagai runtime container:
 
 ```bash

@@ -145,9 +145,7 @@ Langkah paling masuk akal berikutnya:
 4. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
 5. Ambil screenshot Jaeger trace untuk portfolio.
 6. Jika ingin lanjut production-like:
-   - tambah Prometheus/Grafana/cAdvisor;
-   - expose `/metrics` dari service;
-   - tambah dashboard CPU/RAM/Kafka lag/PostgreSQL metrics;
+   - perluas dashboard Grafana;
    - tambah DLQ dan retry policy yang lebih lengkap;
    - tambah GitHub Actions integration test dengan service container.
 
@@ -210,6 +208,20 @@ Jika memakai Docker runtime:
 make perf-smoke CONTAINER=docker
 ```
 
+### Metrics dashboard
+
+```bash
+make metrics-up
+```
+
+URL:
+
+```text
+Prometheus: http://localhost:9090
+Grafana: http://localhost:3000
+Node exporter: http://localhost:9100/metrics
+```
+
 ### Docker Compose check
 
 ```bash
@@ -239,6 +251,8 @@ Sudah terpenuhi:
 - `make perf-smoke` menjalankan K6 smoke test.
 - CI workflow sudah dibuat.
 - README portfolio sudah diperkuat.
+- `/metrics` service sudah tersedia.
+- Metrics stack lokal dengan Prometheus/Grafana/node-exporter/exporter sudah tersedia.
 
 Perlu diverifikasi di GitHub:
 
@@ -248,16 +262,11 @@ Perlu diverifikasi di GitHub:
 
 Belum selesai dan masih layak jadi phase berikutnya:
 
-- Prometheus/Grafana/cAdvisor stack.
-- `/metrics` endpoint per service.
-- Kafka lag exporter.
-- PostgreSQL exporter.
-- Redis exporter.
 - DLQ untuk poison event.
 - retry/backoff policy yang lebih eksplisit untuk Kafka consumer.
 - CI integration test dengan service container.
 - load/stress test tuning setelah baseline nyata.
-- dokumentasi screenshot demo trace dan hasil K6.
+- perluasan dashboard Grafana dan dokumentasi screenshot hasil demo.
 
 ## 10. Cara Agent Baru Memulai
 

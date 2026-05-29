@@ -244,3 +244,37 @@ Default runner memakai container runtime lokal:
 ```text
 CONTAINER=podman
 ```
+
+## 12. Metrics Dashboard Lokal
+
+Jalankan app dan metrics stack:
+
+```text
+make metrics-up
+```
+
+Endpoint:
+
+```text
+Prometheus: http://localhost:9090
+Grafana: http://localhost:3000
+Node exporter: http://localhost:9100/metrics
+```
+
+Grafana login:
+
+```text
+admin / admin
+```
+
+Dashboard awal:
+
+```text
+Toko Bangunan Overview
+```
+
+Untuk menghentikan metrics stack:
+
+```text
+make metrics-down
+```

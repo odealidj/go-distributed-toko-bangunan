@@ -7,12 +7,17 @@ import (
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/bootstrap"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/metrics"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
 func main() {
 	cfg := config.LoadService("catalog-inventory-service", ":8081", ":9001")
 	slog.SetDefault(observability.NewLogger(cfg.ServiceName))
+	if err := metrics.Setup(cfg.ServiceName); err != nil {
+		slog.Error("gagal menyiapkan metrics", "error", err)
+		os.Exit(1)
+	}
 
 	shutdownObservability, err := observability.Init(context.Background(), cfg.ServiceName, cfg.OTLPEndpoint)
 	if err != nil {

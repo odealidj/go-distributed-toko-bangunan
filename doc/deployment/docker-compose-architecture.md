@@ -20,8 +20,9 @@ otel-collector
 jaeger
 prometheus
 grafana
-cAdvisor
+node-exporter
 postgres-exporter
+redis-exporter
 kafka-exporter
 ```
 
@@ -76,6 +77,12 @@ flowchart LR
 | OTEL Collector gRPC | `4317` | `4317` | OTLP gRPC |
 | OTEL Collector HTTP | `4318` | `4318` | OTLP HTTP |
 | Jaeger UI | `16686` | `16686` | Trace viewer |
+| Prometheus | `9090` | `9090` | Metrics query |
+| Grafana | `3000` | `3000` | Metrics dashboard |
+| node-exporter | `9100` | `9100` | Host/resource metrics |
+| postgres-exporter | `9187` | `9187` | PostgreSQL metrics |
+| redis-exporter | `9121` | `9121` | Redis metrics |
+| kafka-exporter | `9308` | `9308` | Kafka metrics |
 
 Catatan:
 

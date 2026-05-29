@@ -8,7 +8,7 @@ K6 mengukur performa dari sisi client. Metrics dashboard mengukur kondisi intern
 
 - CPU;
 - RAM;
-- container resource;
+- host/resource metrics;
 - PostgreSQL;
 - Kafka;
 - Redis;
@@ -22,7 +22,6 @@ Stack yang direkomendasikan untuk versi lengkap:
 ```text
 Prometheus
 Grafana
-cAdvisor
 node-exporter
 postgres-exporter
 redis-exporter
@@ -37,8 +36,7 @@ Peran:
 | --- | --- |
 | Prometheus | Scrape dan menyimpan time-series metrics. |
 | Grafana | Dashboard visualisasi. |
-| cAdvisor | Container CPU/RAM/network/block I/O. |
-| node-exporter | Host metrics. |
+| node-exporter | Host CPU/RAM/filesystem/network metrics untuk demo lokal. |
 | postgres-exporter | PostgreSQL metrics. |
 | redis-exporter | Redis metrics. |
 | kafka-exporter | Kafka topic dan consumer group metrics. |
@@ -52,7 +50,7 @@ Jika ingin mulai sederhana:
 ```text
 Prometheus
 Grafana
-cAdvisor
+node-exporter
 postgres-exporter
 kafka-exporter
 Jaeger
@@ -61,6 +59,47 @@ OpenTelemetry Collector
 
 Redis exporter dapat ditambahkan setelah cache mulai aktif digunakan.
 
+Implementasi lokal saat ini tersedia melalui Docker Compose profile `metrics`.
+
+Command:
+
+```bash
+make metrics-up
+```
+
+Komponen yang dijalankan:
+
+- Prometheus;
+- Grafana;
+- node-exporter;
+- postgres-exporter;
+- redis-exporter;
+- kafka-exporter.
+
+URL lokal:
+
+| Komponen | URL |
+| --- | --- |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3000` |
+| node-exporter | `http://localhost:9100/metrics` |
+| PostgreSQL exporter | `http://localhost:9187/metrics` |
+| Redis exporter | `http://localhost:9121/metrics` |
+| Kafka exporter | `http://localhost:9308/metrics` |
+
+Grafana default:
+
+```text
+user: admin
+password: admin
+```
+
+Dashboard awal:
+
+```text
+Toko Bangunan Overview
+```
+
 ## 4. Service Metrics
 
 Setiap Go service harus mengekspos:
@@ -68,6 +107,13 @@ Setiap Go service harus mengekspos:
 ```text
 GET /metrics
 ```
+
+Status implementasi saat ini:
+
+- `order-service` expose `/metrics`;
+- `catalog-inventory-service` expose `/metrics`;
+- `payment-service` expose `/metrics`;
+- Prometheus scrape ketiga service tersebut.
 
 Metric minimum:
 
@@ -187,17 +233,22 @@ redis_cache_misses_total
 redis_cache_errors_total
 ```
 
-## 10. Container Resource Metrics
+## 10. Resource Metrics
 
-Dari cAdvisor:
+Dari node-exporter:
 
-- CPU usage per container;
-- memory usage per container;
-- network receive/transmit;
-- block I/O;
-- restart count;
+- CPU usage host;
+- memory usage host;
+- filesystem usage;
+- network receive/transmit.
 
-Container yang wajib dipantau:
+Dari Go service `/metrics`:
+
+- process memory per service;
+- Go runtime goroutine/GC metrics;
+- HTTP metrics jika instrumentasi route ditambahkan.
+
+Komponen yang wajib dikorelasikan saat performance test:
 
 ```text
 order-service
@@ -289,10 +340,9 @@ Metrics/resource observability dianggap siap jika:
 
 - Grafana dapat dibuka lokal;
 - Prometheus berhasil scrape service dan exporter;
-- CPU/RAM container terlihat;
+- CPU/RAM host dan process memory service terlihat;
 - Kafka consumer lag terlihat;
 - PostgreSQL connection dan query metrics terlihat;
 - business metrics checkout terlihat;
 - outbox/inbox metrics terlihat;
 - K6 load test dapat dikorelasikan dengan dashboard.
-

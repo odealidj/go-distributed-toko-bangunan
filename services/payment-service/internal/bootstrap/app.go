@@ -20,6 +20,7 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/usecase"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/metrics"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
@@ -55,6 +56,7 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		),
 		khttp.Filter(httpx.Correlation()),
 	)
+	metrics.Register(httpServer)
 	rest.RegisterRoutes(httpServer, cfg, payment)
 
 	grpcServer := kgrpc.NewServer(

@@ -20,6 +20,7 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/application/usecase"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/metrics"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -59,6 +60,7 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		),
 		khttp.Filter(httpx.Correlation()),
 	)
+	metrics.Register(httpServer)
 	rest.RegisterRoutes(httpServer, cfg, catalog)
 
 	grpcServer := kgrpc.NewServer(
