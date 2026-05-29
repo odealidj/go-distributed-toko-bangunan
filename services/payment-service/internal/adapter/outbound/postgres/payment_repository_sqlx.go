@@ -11,26 +11,49 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/domain/model"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type PaymentRepository struct {
 	db *sqlx.DB
 }
 
+var paymentRepositoryTracer = otel.Tracer("payment-service/postgres")
+
 func NewPaymentRepository(db *sqlx.DB) *PaymentRepository {
 	return &PaymentRepository{db: db}
 }
 
 func (r *PaymentRepository) Ping(ctx context.Context) error {
-	return r.db.PingContext(ctx)
+	ctx, span := paymentRepositoryTracer.Start(ctx, "postgres.PaymentRepository.Ping")
+	defer span.End()
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+	if err := r.db.PingContext(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PaymentRepository) CreatePayment(ctx context.Context, command model.CreatePaymentCommand) (model.Payment, error) {
+	ctx, span := paymentRepositoryTracer.Start(ctx, "postgres.PaymentRepository.CreatePayment")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "transaction"),
+		attribute.String("order_id", command.OrderID),
+		attribute.String("idempotency_key", command.IdempotencyKey),
+	)
 	existing, err := r.findByIdempotencyKey(ctx, command.IdempotencyKey)
 	if err == nil {
 		return existing, nil
 	}
 	if err != nil && !errors.Is(err, model.ErrPaymentNotFound) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
@@ -39,11 +62,15 @@ func (r *PaymentRepository) CreatePayment(ctx context.Context, command model.Cre
 		return existing, nil
 	}
 	if err != nil && !errors.Is(err, model.ErrPaymentNotFound) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 	defer rollback(tx)
@@ -60,6 +87,8 @@ func (r *PaymentRepository) CreatePayment(ctx context.Context, command model.Cre
 		INSERT INTO payments (id, order_id, amount, status, payment_mode, idempotency_key)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, payment.ID, payment.OrderID, payment.Amount, payment.Status, payment.PaymentMode, payment.IdempotencyKey); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
@@ -73,16 +102,27 @@ func (r *PaymentRepository) CreatePayment(ctx context.Context, command model.Cre
 		INSERT INTO payment_attempts (id, payment_id, status, reason)
 		VALUES ($1, $2, $3, $4)
 	`, attempt.ID, attempt.PaymentID, attempt.Status, nullableString(attempt.Reason)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 	return payment, nil
 }
 
 func (r *PaymentRepository) GetPaymentByID(ctx context.Context, paymentID string) (model.Payment, error) {
+	ctx, span := paymentRepositoryTracer.Start(ctx, "postgres.PaymentRepository.GetPaymentByID")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "SELECT"),
+		attribute.String("payment_id", paymentID),
+	)
 	var payment paymentRow
 	if err := r.db.GetContext(ctx, &payment, `
 		SELECT id, order_id, amount, status, payment_mode, idempotency_key
@@ -90,16 +130,25 @@ func (r *PaymentRepository) GetPaymentByID(ctx context.Context, paymentID string
 		WHERE id = $1
 	`, paymentID); err != nil {
 		if isNotFound(err) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return model.Payment{}, model.ErrPaymentNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 	return payment.toModel(), nil
 }
 
 func (r *PaymentRepository) CancelPayment(ctx context.Context, command model.CancelPaymentCommand) (model.Payment, error) {
+	ctx, span := paymentRepositoryTracer.Start(ctx, "postgres.PaymentRepository.CancelPayment")
+	defer span.End()
+	span.SetAttributes(attribute.String("db.system", "postgresql"), attribute.String("db.operation.name", "transaction"))
 	payment, err := r.findForCancel(ctx, command)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 	if payment.Status == model.PaymentStatusCancelled || payment.Status == model.PaymentStatusFailed {
@@ -111,6 +160,8 @@ func (r *PaymentRepository) CancelPayment(ctx context.Context, command model.Can
 
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 	defer rollback(tx)
@@ -120,6 +171,8 @@ func (r *PaymentRepository) CancelPayment(ctx context.Context, command model.Can
 		SET status = $2, updated_at = now()
 		WHERE id = $1
 	`, payment.ID, model.PaymentStatusCancelled); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
@@ -127,10 +180,14 @@ func (r *PaymentRepository) CancelPayment(ctx context.Context, command model.Can
 		INSERT INTO payment_attempts (id, payment_id, status, reason)
 		VALUES ($1, $2, $3, $4)
 	`, newID("pay_attempt"), payment.ID, model.PaymentStatusCancelled, nullableString(command.Reason)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Payment{}, err
 	}
 
@@ -139,8 +196,19 @@ func (r *PaymentRepository) CancelPayment(ctx context.Context, command model.Can
 }
 
 func (r *PaymentRepository) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	ctx, span := paymentRepositoryTracer.Start(ctx, "postgres.PaymentRepository.ProcessOrderEvent")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "transaction"),
+		attribute.String("event_id", event.EventID),
+		attribute.String("event_type", event.EventType),
+		attribute.String("order_id", event.AggregateID),
+	)
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 	defer rollback(tx)
@@ -152,16 +220,22 @@ func (r *PaymentRepository) ProcessOrderEvent(ctx context.Context, event messagi
 		if isUniqueViolation(err) {
 			return true, tx.Commit()
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 
 	if event.EventType == "OrderCancelled" {
 		if err := cancelPaymentByOrderIDTx(ctx, tx, event.AggregateID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return false, err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 	return false, nil

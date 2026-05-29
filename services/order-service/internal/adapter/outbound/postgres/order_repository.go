@@ -10,12 +10,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/adapter/outbound/postgres/sqlc"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/domain/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type OrderRepository struct {
 	pool    *pgxpool.Pool
 	queries *sqlc.Queries
 }
+
+var orderRepositoryTracer = otel.Tracer("order-service/postgres")
 
 func NewOrderRepository(pool *pgxpool.Pool) *OrderRepository {
 	return &OrderRepository{
@@ -25,12 +30,30 @@ func NewOrderRepository(pool *pgxpool.Pool) *OrderRepository {
 }
 
 func (r *OrderRepository) Ping(ctx context.Context) error {
-	return r.pool.Ping(ctx)
+	ctx, span := orderRepositoryTracer.Start(ctx, "postgres.OrderRepository.Ping")
+	defer span.End()
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+	if err := r.pool.Ping(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *OrderRepository) CreateCheckout(ctx context.Context, order model.Order, saga model.SagaInstance, step model.SagaStep, event model.OutboxEvent) error {
+	ctx, span := orderRepositoryTracer.Start(ctx, "postgres.OrderRepository.CreateCheckout")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "transaction"),
+		attribute.String("order_id", order.ID),
+		attribute.String("correlation_id", order.CorrelationID),
+	)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	defer rollback(ctx, tx)
@@ -46,6 +69,8 @@ func (r *OrderRepository) CreateCheckout(ctx context.Context, order model.Order,
 		PaymentID:       nullableText(order.PaymentID),
 		CorrelationID:   order.CorrelationID,
 	}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -60,6 +85,8 @@ func (r *OrderRepository) CreateCheckout(ctx context.Context, order model.Order,
 			UnitPrice:   item.UnitPrice,
 			LineTotal:   item.LineTotal,
 		}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
@@ -71,36 +98,70 @@ func (r *OrderRepository) CreateCheckout(ctx context.Context, order model.Order,
 		CurrentStep:   saga.CurrentStep,
 		CorrelationID: saga.CorrelationID,
 	}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if err := createSagaStep(ctx, q, step); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if err := createOutboxEvent(ctx, q, event); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *OrderRepository) GetOrder(ctx context.Context, orderID string) (model.Order, error) {
+	ctx, span := orderRepositoryTracer.Start(ctx, "postgres.OrderRepository.GetOrder")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "SELECT"),
+		attribute.String("order_id", orderID),
+	)
 	row, err := r.queries.GetOrder(ctx, orderID)
 	if errors.Is(err, pgx.ErrNoRows) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Order{}, model.ErrOrderNotFound
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Order{}, err
 	}
 	items, err := r.queries.ListOrderItems(ctx, orderID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Order{}, err
 	}
 	return orderFromRow(row, items), nil
 }
 
 func (r *OrderRepository) RecordTransition(ctx context.Context, transition model.SagaTransition) error {
+	ctx, span := orderRepositoryTracer.Start(ctx, "postgres.OrderRepository.RecordTransition")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "transaction"),
+		attribute.String("order_id", transition.OrderID),
+		attribute.String("saga_step", transition.SagaCurrentStep),
+	)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	defer rollback(ctx, tx)
@@ -120,6 +181,8 @@ func (r *OrderRepository) RecordTransition(ctx context.Context, transition model
 			})
 		}
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
@@ -131,21 +194,32 @@ func (r *OrderRepository) RecordTransition(ctx context.Context, transition model
 			CurrentStep: transition.SagaCurrentStep,
 			Column4:     transition.CompleteSaga,
 		}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
 	if transition.Step.ID != "" {
 		if err := createSagaStep(ctx, q, transition.Step); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
 	if transition.Event.ID != "" {
 		if err := createOutboxEvent(ctx, q, transition.Event); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func createSagaStep(ctx context.Context, q *sqlc.Queries, step model.SagaStep) error {

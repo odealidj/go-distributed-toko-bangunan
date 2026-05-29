@@ -87,10 +87,10 @@ Produk demo yang direkomendasikan:
 
 | Product ID | Name | Unit | Price | On Hand |
 | --- | --- | --- | --- | --- |
-| `prod_semen_50kg` | Semen Tiga Roda 50kg | sak | 68000 | 20 |
-| `prod_besi_10mm` | Besi Beton 10mm SNI | batang | 72000 | 15 |
-| `prod_pasir_m3` | Pasir Bangka | m3 | 350000 | 5 |
-| `prod_cat_5kg` | Cat Tembok Putih 5kg | pail | 145000 | 10 |
+| `prod_semen_50kg` | Semen Portland 50kg | sak | 68000 | 120 |
+| `prod_besi_10mm` | Besi Beton 10mm | batang | 72000 | 80 |
+| `prod_pasir_1m3` | Pasir Beton 1m3 | m3 | 310000 | 12 |
+| `prod_cat_putih_5kg` | Cat Tembok Putih 5kg | pail | 145000 | 45 |
 
 ## 5. Urutan Startup
 
@@ -180,3 +180,24 @@ prometheus/grafana jika profile observability aktif
 ```
 
 Service aplikasi dapat dijalankan terpisah agar breakpoint/debugger lebih mudah digunakan.
+
+## 9. Verifikasi Trace Demo
+
+Setelah semua service jalan dan seed data sudah masuk:
+
+```text
+make trace-verify
+```
+
+Target ini akan:
+
+1. melakukan checkout demo ke `order-service`;
+2. menunggu trace dikirim ke Jaeger;
+3. mencari trace berdasarkan `correlation_id`;
+4. memverifikasi minimal ada `order-service`, `catalog-inventory-service`, dan `payment-service` di trace yang sama.
+
+Script yang dipakai:
+
+```text
+scripts/verify-trace.sh
+```

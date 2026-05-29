@@ -20,6 +20,7 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/usecase"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
 func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
@@ -49,6 +50,7 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		khttp.Address(cfg.HTTPAddr),
 		khttp.Middleware(
 			recovery.Recovery(),
+			observability.ServerMetadata(),
 			tracing.Server(),
 		),
 		khttp.Filter(httpx.Correlation()),
@@ -59,6 +61,7 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		kgrpc.Address(cfg.GRPCAddr),
 		kgrpc.Middleware(
 			recovery.Recovery(),
+			observability.ServerMetadata(),
 			tracing.Server(),
 		),
 	)

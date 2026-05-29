@@ -21,6 +21,7 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
 func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
@@ -73,6 +74,7 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		khttp.Address(cfg.HTTPAddr),
 		khttp.Middleware(
 			recovery.Recovery(),
+			observability.ServerMetadata(),
 			tracing.Server(),
 		),
 		khttp.Filter(httpx.Correlation()),

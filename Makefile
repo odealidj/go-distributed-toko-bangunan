@@ -15,6 +15,7 @@ ORDER_DATABASE_URL ?= postgres://toko:toko@localhost:5432/order_db?sslmode=disab
 .PHONY: infra-up infra-down infra-logs infra-ps kafka-topics up down \
 	order inventory payment \
 	order-run inventory-run payment-run \
+	trace-verify \
 	proto-test shared-test order-test inventory-test payment-test test-all \
 	order-build inventory-build payment-build build-all \
 	order-migrate inventory-migrate payment-migrate migrate \
@@ -58,6 +59,9 @@ inventory-run:
 
 payment-run:
 	cd $(PAYMENT_DIR) && DATABASE_URL="$(PAYMENT_DATABASE_URL)" $(GO) run $(GOFLAGS) ./cmd/api
+
+trace-verify:
+	./scripts/verify-trace.sh
 
 shared-test:
 	cd shared && $(GO) test $(GOFLAGS) ./...

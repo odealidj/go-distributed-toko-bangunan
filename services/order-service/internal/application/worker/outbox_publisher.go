@@ -43,7 +43,7 @@ func (p *OutboxPublisher) Run(ctx context.Context) {
 func (p *OutboxPublisher) publishPending(ctx context.Context) {
 	events, err := p.repository.ListPending(ctx, p.batchSize)
 	if err != nil {
-		slog.Error("gagal mengambil outbox pending", "error", err)
+		slog.ErrorContext(ctx, "gagal mengambil outbox pending", "error", err)
 		return
 	}
 
@@ -62,13 +62,13 @@ func (p *OutboxPublisher) publishPending(ctx context.Context) {
 		topic := messaging.TopicForAggregate(event.AggregateType)
 		if err := p.producer.Publish(ctx, topic, event.AggregateID, envelope); err != nil {
 			_ = p.repository.MarkFailed(ctx, event.ID)
-			slog.Error("gagal publish outbox event", "event_id", event.ID, "event_type", event.EventType, "topic", topic, "error", err)
+			slog.ErrorContext(ctx, "gagal publish outbox event", "event_id", event.ID, "event_type", event.EventType, "topic", topic, "order_id", event.AggregateID, "error", err)
 			continue
 		}
 		if err := p.repository.MarkPublished(ctx, event.ID); err != nil {
-			slog.Error("gagal menandai outbox published", "event_id", event.ID, "error", err)
+			slog.ErrorContext(ctx, "gagal menandai outbox published", "event_id", event.ID, "order_id", event.AggregateID, "error", err)
 			continue
 		}
-		slog.Info("outbox event published", "event_id", event.ID, "event_type", event.EventType, "topic", topic, "order_id", event.AggregateID)
+		slog.InfoContext(ctx, "outbox event published", "event_id", event.ID, "event_type", event.EventType, "topic", topic, "order_id", event.AggregateID)
 	}
 }

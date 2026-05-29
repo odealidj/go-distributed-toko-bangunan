@@ -5,6 +5,7 @@ import (
 	"time"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
 type Meta struct {
@@ -97,13 +98,13 @@ func JSONError(ctx khttp.Context, status int, code, message string) error {
 
 func meta(ctx khttp.Context) Meta {
 	req := ctx.Request()
-	requestID := req.Header.Get("X-Request-Id")
+	requestID := req.Header.Get(observability.HeaderRequestID)
 	if requestID == "" {
-		requestID = req.Header.Get("X-Request-ID")
+		requestID = req.Header.Get(observability.HeaderRequestIDAlt)
 	}
-	correlationID := req.Header.Get("X-Correlation-Id")
+	correlationID := req.Header.Get(observability.HeaderCorrelationID)
 	if correlationID == "" {
-		correlationID = req.Header.Get("X-Correlation-ID")
+		correlationID = req.Header.Get(observability.HeaderCorrelationAlt)
 	}
 	if requestID == "" {
 		requestID = "local-request"

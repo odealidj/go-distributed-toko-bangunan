@@ -9,6 +9,8 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/domain/model"
 	goredis "github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -20,11 +22,16 @@ type ProductCache struct {
 	client *goredis.Client
 }
 
+var productCacheTracer = otel.Tracer("catalog-inventory-service/redis")
+
 func NewProductCache(client *goredis.Client) *ProductCache {
 	return &ProductCache{client: client}
 }
 
 func (c *ProductCache) GetProduct(ctx context.Context, id string) (model.Product, bool) {
+	ctx, span := productCacheTracer.Start(ctx, "redis.ProductCache.GetProduct")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.system", "redis"), attribute.String("product_id", id))
 	var product model.Product
 	if c == nil || c.client == nil {
 		return product, false
@@ -40,6 +47,9 @@ func (c *ProductCache) GetProduct(ctx context.Context, id string) (model.Product
 }
 
 func (c *ProductCache) SetProduct(ctx context.Context, product model.Product) {
+	ctx, span := productCacheTracer.Start(ctx, "redis.ProductCache.SetProduct")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.system", "redis"), attribute.String("product_id", product.ID))
 	if c == nil || c.client == nil {
 		return
 	}
@@ -51,6 +61,9 @@ func (c *ProductCache) SetProduct(ctx context.Context, product model.Product) {
 }
 
 func (c *ProductCache) GetProductList(ctx context.Context, filter model.ProductFilter) (port.ProductList, bool) {
+	ctx, span := productCacheTracer.Start(ctx, "redis.ProductCache.GetProductList")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.system", "redis"))
 	var list port.ProductList
 	if c == nil || c.client == nil {
 		return list, false
@@ -66,6 +79,9 @@ func (c *ProductCache) GetProductList(ctx context.Context, filter model.ProductF
 }
 
 func (c *ProductCache) SetProductList(ctx context.Context, filter model.ProductFilter, list port.ProductList) {
+	ctx, span := productCacheTracer.Start(ctx, "redis.ProductCache.SetProductList")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.system", "redis"))
 	if c == nil || c.client == nil {
 		return
 	}
@@ -77,6 +93,9 @@ func (c *ProductCache) SetProductList(ctx context.Context, filter model.ProductF
 }
 
 func (c *ProductCache) DeleteProduct(ctx context.Context, id string) {
+	ctx, span := productCacheTracer.Start(ctx, "redis.ProductCache.DeleteProduct")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.system", "redis"), attribute.String("product_id", id))
 	if c == nil || c.client == nil {
 		return
 	}
@@ -84,6 +103,9 @@ func (c *ProductCache) DeleteProduct(ctx context.Context, id string) {
 }
 
 func (c *ProductCache) DeleteProductLists(ctx context.Context) {
+	ctx, span := productCacheTracer.Start(ctx, "redis.ProductCache.DeleteProductLists")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.system", "redis"))
 	if c == nil || c.client == nil {
 		return
 	}

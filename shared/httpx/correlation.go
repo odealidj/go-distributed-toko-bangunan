@@ -4,13 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
 const (
-	HeaderRequestID      = "X-Request-Id"
-	HeaderRequestIDAlt   = "X-Request-ID"
-	HeaderCorrelationID  = "X-Correlation-Id"
-	HeaderCorrelationAlt = "X-Correlation-ID"
+	HeaderRequestID      = observability.HeaderRequestID
+	HeaderRequestIDAlt   = observability.HeaderRequestIDAlt
+	HeaderCorrelationID  = observability.HeaderCorrelationID
+	HeaderCorrelationAlt = observability.HeaderCorrelationAlt
 )
 
 func Correlation() func(http.Handler) http.Handler {
@@ -31,7 +33,7 @@ func Correlation() func(http.Handler) http.Handler {
 			w.Header().Set(HeaderRequestID, requestID)
 			w.Header().Set(HeaderCorrelationID, correlationID)
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(observability.WithRequestScope(r.Context(), requestID, correlationID)))
 		})
 	}
 }

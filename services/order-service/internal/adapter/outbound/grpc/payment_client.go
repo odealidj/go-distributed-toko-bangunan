@@ -6,7 +6,9 @@ import (
 
 	paymentv1 "github.com/odealidj/go-distributed-toko-bangunan/proto/payment/v1"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 	"google.golang.org/grpc/codes"
+	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -28,7 +30,7 @@ func (c *PaymentClient) CreatePayment(ctx context.Context, orderID string, amoun
 	var response *paymentv1.CreatePaymentResponse
 	err := c.call(ctx, func(callCtx context.Context) error {
 		var err error
-		response, err = c.client.CreatePayment(callCtx, &paymentv1.CreatePaymentRequest{
+		response, err = c.client.CreatePayment(withPaymentMetadata(callCtx, correlationID), &paymentv1.CreatePaymentRequest{
 			Metadata:    paymentMetadata(correlationID, causationID, idempotencyKey),
 			OrderId:     orderID,
 			Amount:      amount,
@@ -76,6 +78,18 @@ func paymentMetadata(correlationID, causationID, idempotencyKey string) *payment
 		CausationId:    causationID,
 		IdempotencyKey: idempotencyKey,
 	}
+}
+
+func withPaymentMetadata(ctx context.Context, correlationID string) context.Context {
+	requestID := observability.RequestIDFromContext(ctx)
+	if requestID == "" {
+		requestID = observability.NewExecutionID("req")
+	}
+	return grpcmetadata.AppendToOutgoingContext(
+		ctx,
+		observability.HeaderRequestID, requestID,
+		observability.HeaderCorrelationID, correlationID,
+	)
 }
 
 func paymentModeToProto(mode string) paymentv1.PaymentMode {

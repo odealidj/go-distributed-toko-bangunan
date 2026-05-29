@@ -7,7 +7,9 @@ import (
 
 	inventoryv1 "github.com/odealidj/go-distributed-toko-bangunan/proto/inventory/v1"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 	"google.golang.org/grpc/codes"
+	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -29,7 +31,7 @@ func (c *InventoryClient) ValidateProducts(ctx context.Context, items []model.Or
 	var response *inventoryv1.ValidateProductsResponse
 	err := c.call(ctx, func(callCtx context.Context) error {
 		var err error
-		response, err = c.client.ValidateProducts(callCtx, &inventoryv1.ValidateProductsRequest{
+		response, err = c.client.ValidateProducts(withMetadata(callCtx, correlationID), &inventoryv1.ValidateProductsRequest{
 			Metadata: metadata(correlationID, causationID, ""),
 			Items:    inventoryItems(items),
 		})
@@ -57,7 +59,7 @@ func (c *InventoryClient) ReserveStock(ctx context.Context, orderID string, item
 	var response *inventoryv1.ReserveStockResponse
 	err := c.call(ctx, func(callCtx context.Context) error {
 		var err error
-		response, err = c.client.ReserveStock(callCtx, &inventoryv1.ReserveStockRequest{
+		response, err = c.client.ReserveStock(withMetadata(callCtx, correlationID), &inventoryv1.ReserveStockRequest{
 			Metadata: metadata(correlationID, causationID, idempotencyKey),
 			OrderId:  orderID,
 			Items:    inventoryItems(items),
@@ -75,7 +77,7 @@ func (c *InventoryClient) ReserveStock(ctx context.Context, orderID string, item
 
 func (c *InventoryClient) ReleaseStock(ctx context.Context, orderID, correlationID, causationID, idempotencyKey string) error {
 	return inventoryError(c.call(ctx, func(callCtx context.Context) error {
-		_, err := c.client.ReleaseStock(callCtx, &inventoryv1.ReleaseStockRequest{
+		_, err := c.client.ReleaseStock(withMetadata(callCtx, correlationID), &inventoryv1.ReleaseStockRequest{
 			Metadata: metadata(correlationID, causationID, idempotencyKey),
 			OrderId:  orderID,
 		})
@@ -85,7 +87,7 @@ func (c *InventoryClient) ReleaseStock(ctx context.Context, orderID, correlation
 
 func (c *InventoryClient) CommitStock(ctx context.Context, orderID, correlationID, causationID, idempotencyKey string) error {
 	return inventoryError(c.call(ctx, func(callCtx context.Context) error {
-		_, err := c.client.CommitStock(callCtx, &inventoryv1.CommitStockRequest{
+		_, err := c.client.CommitStock(withMetadata(callCtx, correlationID), &inventoryv1.CommitStockRequest{
 			Metadata: metadata(correlationID, causationID, idempotencyKey),
 			OrderId:  orderID,
 		})
@@ -140,6 +142,18 @@ func metadata(correlationID, causationID, idempotencyKey string) *inventoryv1.Re
 		CausationId:    causationID,
 		IdempotencyKey: idempotencyKey,
 	}
+}
+
+func withMetadata(ctx context.Context, correlationID string) context.Context {
+	requestID := observability.RequestIDFromContext(ctx)
+	if requestID == "" {
+		requestID = observability.NewExecutionID("req")
+	}
+	return grpcmetadata.AppendToOutgoingContext(
+		ctx,
+		observability.HeaderRequestID, requestID,
+		observability.HeaderCorrelationID, correlationID,
+	)
 }
 
 func isTransient(err error) bool {

@@ -14,12 +14,17 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/catalog-inventory-service/internal/domain/model"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type CatalogRepository struct {
 	pool    *pgxpool.Pool
 	queries *sqlc.Queries
 }
+
+var catalogRepositoryTracer = otel.Tracer("catalog-inventory-service/postgres")
 
 func NewCatalogRepository(pool *pgxpool.Pool) *CatalogRepository {
 	return &CatalogRepository{
@@ -29,10 +34,26 @@ func NewCatalogRepository(pool *pgxpool.Pool) *CatalogRepository {
 }
 
 func (r *CatalogRepository) Ping(ctx context.Context) error {
-	return r.pool.Ping(ctx)
+	ctx, span := catalogRepositoryTracer.Start(ctx, "postgres.CatalogRepository.Ping")
+	defer span.End()
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
+	if err := r.pool.Ping(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *CatalogRepository) ListProducts(ctx context.Context, filter model.ProductFilter) (port.ProductList, error) {
+	ctx, span := catalogRepositoryTracer.Start(ctx, "postgres.CatalogRepository.ListProducts")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "SELECT"),
+		attribute.Int("page", filter.Page),
+		attribute.Int("per_page", filter.PerPage),
+	)
 	limit := filter.PerPage
 	offset := (filter.Page - 1) * filter.PerPage
 
@@ -43,6 +64,8 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, filter model.Produ
 		LimitRows:  int32(limit),
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return port.ProductList{}, err
 	}
 
@@ -51,6 +74,8 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, filter model.Produ
 		Search:     filter.Search,
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return port.ProductList{}, err
 	}
 
@@ -65,19 +90,39 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, filter model.Produ
 }
 
 func (r *CatalogRepository) GetProduct(ctx context.Context, id string) (model.Product, error) {
+	ctx, span := catalogRepositoryTracer.Start(ctx, "postgres.CatalogRepository.GetProduct")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "SELECT"),
+		attribute.String("product_id", id),
+	)
 	row, err := r.queries.GetProduct(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Product{}, model.ErrProductNotFound
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.Product{}, err
 	}
 	return productFromGetRow(row), nil
 }
 
 func (r *CatalogRepository) ValidateProducts(ctx context.Context, items []model.OrderItemInput) ([]model.ValidatedItem, int64, error) {
+	ctx, span := catalogRepositoryTracer.Start(ctx, "postgres.CatalogRepository.ValidateProducts")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "SELECT"),
+		attribute.Int("item_count", len(items)),
+	)
 	products, err := r.queries.GetProductsByIDs(ctx, productIDs(items))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, 0, err
 	}
 
@@ -91,7 +136,10 @@ func (r *CatalogRepository) ValidateProducts(ctx context.Context, items []model.
 	for _, item := range items {
 		product, ok := byID[item.ProductID]
 		if !ok {
-			return nil, 0, fmt.Errorf("%w: %s", model.ErrProductNotFound, item.ProductID)
+			err := fmt.Errorf("%w: %s", model.ErrProductNotFound, item.ProductID)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, 0, err
 		}
 		lineTotal := int64(item.Quantity * float64(product.Price))
 		total += lineTotal
@@ -108,8 +156,18 @@ func (r *CatalogRepository) ValidateProducts(ctx context.Context, items []model.
 }
 
 func (r *CatalogRepository) ReserveStock(ctx context.Context, command model.ReserveStockCommand) (model.StockReservation, error) {
+	ctx, span := catalogRepositoryTracer.Start(ctx, "postgres.CatalogRepository.ReserveStock")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "transaction"),
+		attribute.String("order_id", command.OrderID),
+		attribute.Int("item_count", len(command.Items)),
+	)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.StockReservation{}, err
 	}
 	defer rollback(ctx, tx)
@@ -120,11 +178,15 @@ func (r *CatalogRepository) ReserveStock(ctx context.Context, command model.Rese
 		return reservationFromIDRow(existing), tx.Commit(ctx)
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.StockReservation{}, err
 	}
 
 	locked, err := q.LockInventoriesForProducts(ctx, productIDs(command.Items))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.StockReservation{}, err
 	}
 	available := make(map[string]float64, len(locked))
@@ -133,7 +195,10 @@ func (r *CatalogRepository) ReserveStock(ctx context.Context, command model.Rese
 	}
 	for _, item := range command.Items {
 		if available[item.ProductID] < item.Quantity {
-			return model.StockReservation{}, fmt.Errorf("%w: %s", model.ErrInsufficientStock, item.ProductID)
+			err := fmt.Errorf("%w: %s", model.ErrInsufficientStock, item.ProductID)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return model.StockReservation{}, err
 		}
 	}
 
@@ -144,6 +209,8 @@ func (r *CatalogRepository) ReserveStock(ctx context.Context, command model.Rese
 		IdempotencyKey: command.IdempotencyKey,
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.StockReservation{}, err
 	}
 
@@ -154,17 +221,23 @@ func (r *CatalogRepository) ReserveStock(ctx context.Context, command model.Rese
 			ProductID:     item.ProductID,
 			Quantity:      item.Quantity,
 		}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return model.StockReservation{}, err
 		}
 		if err := q.AddReservedStock(ctx, sqlc.AddReservedStockParams{
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,
 		}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return model.StockReservation{}, err
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return model.StockReservation{}, err
 	}
 	reservation := reservationFromCreateRow(created)
@@ -199,8 +272,19 @@ func (r *CatalogRepository) transitionReservation(ctx context.Context, orderID, 
 }
 
 func (r *CatalogRepository) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	ctx, span := catalogRepositoryTracer.Start(ctx, "postgres.CatalogRepository.ProcessOrderEvent")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation.name", "transaction"),
+		attribute.String("event_id", event.EventID),
+		attribute.String("event_type", event.EventType),
+		attribute.String("order_id", event.AggregateID),
+	)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 	defer rollback(ctx, tx)
@@ -212,6 +296,8 @@ func (r *CatalogRepository) ProcessOrderEvent(ctx context.Context, event messagi
 		if isUniqueViolation(err) {
 			return true, tx.Commit(ctx)
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 
@@ -219,15 +305,21 @@ func (r *CatalogRepository) ProcessOrderEvent(ctx context.Context, event messagi
 	switch event.EventType {
 	case "OrderConfirmed":
 		if _, err := r.transitionReservationTx(ctx, q, event.AggregateID, model.ReservationStatusCommitted); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return false, err
 		}
 	case "OrderCancelled":
 		if _, err := r.transitionReservationTx(ctx, q, event.AggregateID, model.ReservationStatusReleased); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return false, err
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 	return false, nil

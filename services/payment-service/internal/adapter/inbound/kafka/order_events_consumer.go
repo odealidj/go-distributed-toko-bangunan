@@ -20,10 +20,10 @@ func NewOrderEventsConsumer(cfg config.ServiceConfig, payment *usecase.PaymentUs
 				return err
 			}
 			if duplicate {
-				slog.Info("duplicate kafka event skipped", "service", cfg.ServiceName, "event_id", event.EventID, "event_type", event.EventType, "order_id", event.AggregateID)
+				slog.InfoContext(ctx, "duplicate kafka event skipped", "event_id", event.EventID, "event_type", event.EventType, "order_id", event.AggregateID)
 				return nil
 			}
-			slog.Info("kafka event processed", "service", cfg.ServiceName, "event_id", event.EventID, "event_type", event.EventType, "order_id", event.AggregateID)
+			slog.InfoContext(ctx, "kafka event processed", "event_id", event.EventID, "event_type", event.EventType, "order_id", event.AggregateID)
 			return nil
 		},
 	)
