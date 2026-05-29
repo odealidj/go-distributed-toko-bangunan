@@ -102,6 +102,14 @@ Command target:
 make test-integration
 ```
 
+Implementasi command line saat ini:
+
+```text
+make test-unit
+make test-integration
+make test-e2e
+```
+
 Aturan:
 
 - setiap test harus menyiapkan data sendiri;
@@ -291,6 +299,20 @@ Hasil yang diharapkan:
 - Order read fallback ke PostgreSQL.
 - Checkout success/failure behavior tetap benar.
 - Durable idempotency tetap berjalan melalui database table.
+
+Script otomatis untuk scenario E2E phase ini:
+
+```text
+scripts/test-e2e.sh
+```
+
+Script menjalankan lima skenario berurutan:
+
+1. checkout success;
+2. insufficient stock;
+3. payment failed compensation;
+4. duplicate `OrderConfirmed` event;
+5. Redis unavailable fallback.
 
 ## 9. Test Pyramid
 

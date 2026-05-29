@@ -213,16 +213,29 @@ func (r *PaymentRepository) ProcessOrderEvent(ctx context.Context, event messagi
 	}
 	defer rollback(tx)
 
-	if _, err := tx.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 		INSERT INTO inbox_events (event_id, event_type, aggregate_id, correlation_id, traceparent)
 		VALUES ($1, $2, $3, $4, $5)
-	`, event.EventID, event.EventType, event.AggregateID, event.CorrelationID, nil); err != nil {
-		if isUniqueViolation(err) {
-			return true, tx.Commit()
-		}
+		ON CONFLICT (event_id) DO NOTHING
+	`, event.EventID, event.EventType, event.AggregateID, event.CorrelationID, nil)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return false, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+	if rowsAffected == 0 {
+		if err := tx.Commit(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return false, err
+		}
+		return true, nil
 	}
 
 	if event.EventType == "OrderCancelled" {

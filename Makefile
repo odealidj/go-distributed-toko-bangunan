@@ -15,7 +15,7 @@ ORDER_DATABASE_URL ?= postgres://toko:toko@localhost:5432/order_db?sslmode=disab
 .PHONY: infra-up infra-down infra-logs infra-ps kafka-topics up down \
 	order inventory payment \
 	order-run inventory-run payment-run \
-	trace-verify \
+	trace-verify test-unit test-integration test-e2e \
 	proto-test shared-test order-test inventory-test payment-test test-all \
 	order-build inventory-build payment-build build-all \
 	order-migrate inventory-migrate payment-migrate migrate \
@@ -81,6 +81,19 @@ payment-test:
 test-all: proto-test shared-test order-test inventory-test payment-test
 
 test: test-all
+
+test-unit: test-all
+
+test-integration:
+	$(COMPOSE) --profile app stop order-service catalog-inventory-service payment-service >/dev/null 2>&1 || true
+	cd $(ORDER_DIR) && DATABASE_URL="$(ORDER_DATABASE_URL)" $(GO) test $(GOFLAGS) ./internal/adapter/outbound/postgres
+	cd $(INVENTORY_DIR) && DATABASE_URL="$(INVENTORY_DATABASE_URL)" $(GO) test $(GOFLAGS) ./internal/adapter/outbound/postgres
+	cd $(PAYMENT_DIR) && DATABASE_URL="$(PAYMENT_DATABASE_URL)" $(GO) test $(GOFLAGS) ./internal/adapter/outbound/postgres
+	$(MAKE) inventory-seed
+	$(COMPOSE) --profile app up -d order-service catalog-inventory-service payment-service >/dev/null
+
+test-e2e:
+	./scripts/test-e2e.sh
 
 order-build:
 	cd $(ORDER_DIR) && $(GO) build $(GOFLAGS) -o ../../bin/order-service ./cmd/api

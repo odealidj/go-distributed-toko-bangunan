@@ -178,3 +178,9 @@ No incorrect stock quantity
 9. Jalankan payment failed compensation scenario.
 10. Jalankan duplicate event/idempotency scenario.
 11. Tutup dengan future extraction path untuk dedicated orchestrator.
+
+Untuk menjalankan rangkaian scenario otomatis dari command line:
+
+```text
+make test-e2e
+```

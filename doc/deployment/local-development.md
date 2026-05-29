@@ -201,3 +201,20 @@ Script yang dipakai:
 ```text
 scripts/verify-trace.sh
 ```
+
+## 10. Verifikasi Failure Scenario
+
+Setelah `infra` dan profile `app` aktif:
+
+```text
+make test-integration
+make test-e2e
+```
+
+`make test-e2e` memverifikasi:
+
+- checkout success;
+- insufficient stock;
+- payment failed compensation;
+- duplicate Kafka event idempotency;
+- fallback saat Redis tidak tersedia.

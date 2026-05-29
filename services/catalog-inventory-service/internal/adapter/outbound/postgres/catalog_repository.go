@@ -289,28 +289,41 @@ func (r *CatalogRepository) ProcessOrderEvent(ctx context.Context, event messagi
 	}
 	defer rollback(ctx, tx)
 
-	if _, err := tx.Exec(ctx, `
+	result, err := tx.Exec(ctx, `
 		INSERT INTO inbox_events (event_id, event_type, aggregate_id, correlation_id, traceparent)
 		VALUES ($1, $2, $3, $4, $5)
-	`, event.EventID, event.EventType, event.AggregateID, event.CorrelationID, nil); err != nil {
-		if isUniqueViolation(err) {
-			return true, tx.Commit(ctx)
-		}
+		ON CONFLICT (event_id) DO NOTHING
+	`, event.EventID, event.EventType, event.AggregateID, event.CorrelationID, nil)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return false, err
+	}
+	if result.RowsAffected() == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return false, err
+		}
+		return true, nil
 	}
 
 	q := r.queries.WithTx(tx)
 	switch event.EventType {
 	case "OrderConfirmed":
 		if _, err := r.transitionReservationTx(ctx, q, event.AggregateID, model.ReservationStatusCommitted); err != nil {
+			if errors.Is(err, model.ErrReservationNotFound) {
+				break
+			}
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return false, err
 		}
 	case "OrderCancelled":
 		if _, err := r.transitionReservationTx(ctx, q, event.AggregateID, model.ReservationStatusReleased); err != nil {
+			if errors.Is(err, model.ErrReservationNotFound) {
+				break
+			}
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return false, err
