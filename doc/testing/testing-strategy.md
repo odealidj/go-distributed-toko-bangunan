@@ -316,6 +316,8 @@ Script menjalankan lima skenario berurutan:
 4. duplicate `OrderConfirmed` event;
 5. Redis unavailable fallback.
 
+Sebelum skenario dijalankan, script menunggu `/readyz` dari `order-service`, `catalog-inventory-service`, dan `payment-service`.
+
 ## 9. Test Pyramid
 
 Target proporsi:

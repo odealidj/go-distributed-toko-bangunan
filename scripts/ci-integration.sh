@@ -10,9 +10,9 @@ done
 
 read -r -a COMPOSE_CMD <<<"${COMPOSE:-docker compose}"
 AUTO_CLEANUP="${CI_INTEGRATION_AUTO_CLEANUP:-1}"
-ORDER_HEALTH_URL="${ORDER_HEALTH_URL:-http://localhost:8080/healthz}"
-CATALOG_HEALTH_URL="${CATALOG_HEALTH_URL:-http://localhost:8081/healthz}"
-PAYMENT_HEALTH_URL="${PAYMENT_HEALTH_URL:-http://localhost:8082/healthz}"
+ORDER_READY_URL="${ORDER_READY_URL:-http://localhost:8080/readyz}"
+CATALOG_READY_URL="${CATALOG_READY_URL:-http://localhost:8081/readyz}"
+PAYMENT_READY_URL="${PAYMENT_READY_URL:-http://localhost:8082/readyz}"
 
 compose() {
   "${COMPOSE_CMD[@]}" "$@"
@@ -45,7 +45,7 @@ retry() {
 wait_http_ok() {
   local url="$1"
 
-  retry 30 2 bash -lc "
+  retry 45 2 bash -lc "
     status=\$(curl -sS -o /tmp/toko-wait-body.\$\$ -w '%{http_code}' '${url}' || true)
     rm -f /tmp/toko-wait-body.\$\$
     [[ \"\${status}\" == \"200\" ]]
@@ -53,9 +53,9 @@ wait_http_ok() {
 }
 
 wait_app_stack() {
-  wait_http_ok "${ORDER_HEALTH_URL}"
-  wait_http_ok "${CATALOG_HEALTH_URL}"
-  wait_http_ok "${PAYMENT_HEALTH_URL}"
+  wait_http_ok "${ORDER_READY_URL}"
+  wait_http_ok "${CATALOG_READY_URL}"
+  wait_http_ok "${PAYMENT_READY_URL}"
 }
 
 echo "[1/7] reset compose state"

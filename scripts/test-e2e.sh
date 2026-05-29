@@ -12,6 +12,7 @@ read -r -a COMPOSE_CMD <<<"${COMPOSE:-podman compose}"
 
 ORDER_BASE_URL="${ORDER_BASE_URL:-http://localhost:8080}"
 CATALOG_BASE_URL="${CATALOG_BASE_URL:-http://localhost:8081}"
+PAYMENT_BASE_URL="${PAYMENT_BASE_URL:-http://localhost:8082}"
 PRODUCT_ID="${PRODUCT_ID:-prod_semen_50kg}"
 SUCCESS_QTY="${SUCCESS_QTY:-2}"
 FAILURE_QTY="${FAILURE_QTY:-2}"
@@ -159,10 +160,11 @@ seed_inventory_demo() {
   compose exec -T postgres psql -U toko -d inventory_db < services/catalog-inventory-service/seeds/001_demo_products.sql >/dev/null
 }
 
-echo "[setup] seed inventory demo dan cek health"
+echo "[setup] seed inventory demo dan cek readiness"
 seed_inventory_demo
-assert_http_ok "${ORDER_BASE_URL}/healthz" "order-service harus aktif"
-assert_http_ok "${CATALOG_BASE_URL}/healthz" "catalog-inventory-service harus aktif"
+assert_http_ok "${ORDER_BASE_URL}/readyz" "order-service harus ready"
+assert_http_ok "${CATALOG_BASE_URL}/readyz" "catalog-inventory-service harus ready"
+assert_http_ok "${PAYMENT_BASE_URL}/readyz" "payment-service harus ready"
 
 echo "[1/5] checkout success"
 success_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"

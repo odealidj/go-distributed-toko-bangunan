@@ -29,13 +29,17 @@ func healthHandler(cfg config.ServiceConfig) khttp.HandlerFunc {
 func readyHandler(cfg config.ServiceConfig, catalog *usecase.CatalogUseCase) khttp.HandlerFunc {
 	return func(ctx khttp.Context) error {
 		databaseStatus := "ok"
+		statusCode := http.StatusOK
+		status := "ready"
 		if err := catalog.Ping(ctx); err != nil {
 			databaseStatus = "unavailable"
+			statusCode = http.StatusServiceUnavailable
+			status = "not_ready"
 		}
 
-		return response.JSON(ctx, http.StatusOK, readinessResponse{
+		return response.JSON(ctx, statusCode, readinessResponse{
 			Service: cfg.ServiceName,
-			Status:  "ready",
+			Status:  status,
 			Checks: readinessChecks{
 				Database: databaseStatus,
 				Kafka:    "not_configured",

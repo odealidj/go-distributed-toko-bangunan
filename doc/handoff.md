@@ -123,11 +123,16 @@ Keputusan implementasi:
 - Kafka consumer memakai exponential backoff retry dan publish ke DLQ setelah retry limit.
 - K6 test dijalankan via container image `grafana/k6`.
 - CI integration stack dijalankan lewat `scripts/ci-integration.sh` dengan `docker compose`.
+- CI dan E2E menunggu `/readyz`, bukan `/healthz`, agar startup gating benar-benar mencerminkan dependency inti.
 - Local default memakai Podman, tetapi target `Makefile` bisa diganti ke Docker dengan `COMPOSE="docker compose"` atau `CONTAINER=docker`.
 
 ## 5. Error Terakhir dan Statusnya
 
-Tidak ada error terbuka terakhir saat handoff ini dibuat.
+Error terbuka terakhir sebelum perbaikan ini:
+
+- GitHub Actions `integration-e2e` di branch `phase/11-ci-integration` sempat gagal dengan `exit code 2` walau lokal lolos.
+  - Dugaan kuat: startup gate di CI masih memakai `/healthz`, padahal endpoint itu selalu `200` meski dependency inti belum siap.
+  - Perbaikan: `scripts/ci-integration.sh` dan `scripts/test-e2e.sh` sekarang menunggu `/readyz`; `readyz` mengembalikan `503` saat database belum siap.
 
 Error penting yang pernah ditemukan dan sudah diperbaiki:
 
@@ -147,7 +152,7 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 Langkah paling masuk akal berikutnya:
 
 1. Buat Pull Request dari branch phase terakhir ke `main`.
-2. Pastikan GitHub Actions CI hijau.
+2. Pastikan GitHub Actions CI hijau setelah perbaikan readiness gate.
 3. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
 4. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
 5. Ambil screenshot Jaeger trace untuk portfolio.

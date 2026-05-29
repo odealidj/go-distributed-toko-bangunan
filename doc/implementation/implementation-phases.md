@@ -127,6 +127,7 @@ Acceptance criteria:
 
 - semua service dapat start lokal;
 - `/healthz` dan `/readyz` mengembalikan response standar;
+- `/readyz` mengembalikan `503` jika dependency inti belum siap;
 - missing correlation ID akan dibuat otomatis;
 - generated gRPC code tidak diimport oleh domain;
 - `make test-all` dan `make build-all` lolos.

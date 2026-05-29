@@ -103,6 +103,11 @@ make test-e2e
 make ci-integration COMPOSE="docker compose"
 ```
 
+Catatan operasional:
+
+- `/healthz` hanya menandakan proses HTTP aktif.
+- `/readyz` dipakai untuk startup gate pada CI dan E2E; endpoint ini mengembalikan `503` jika dependency inti belum siap.
+
 K6 smoke/load test:
 
 ```bash

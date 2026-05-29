@@ -122,6 +122,11 @@ Readiness harus memverifikasi dependency yang dibutuhkan:
 - gRPC downstream yang dibutuhkan untuk `order-service`.
 - OpenTelemetry exporter misconfiguration harus dilog, tetapi tidak boleh memblokir core business flow dalam demo mode.
 
+Catatan:
+
+- `/healthz` dipakai sebagai liveness ringan.
+- `/readyz` harus dipakai untuk gating startup script, CI, dan E2E; response `503` berarti dependency inti belum siap.
+
 ## 7. Catatan Docker Compose
 
 Detail topology Docker Compose dijelaskan di:

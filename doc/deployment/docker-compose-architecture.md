@@ -144,6 +144,8 @@ Readiness harus mengecek:
 - Redis connection sebagai warning/non-critical;
 - gRPC downstream untuk `order-service`.
 
+`/healthz` cukup untuk liveness proses. `/readyz` harus mengembalikan `503` sampai dependency inti service benar-benar siap.
+
 ## 8. Makefile Target
 
 Target minimum:
