@@ -37,12 +37,14 @@ phase/11-ci-integration
 Commit terakhir:
 
 ```text
-bbaee32 perkuat readiness ci
+45e4571 stabilkan e2e kafka
 ```
 
 Commit sebelumnya yang relevan:
 
 ```text
+5ff6881 update handoff ci
+bbaee32 perkuat readiness ci
 72999f8 rapikan workflow ci
 fe23ecd tambah ci integration
 ```
@@ -161,15 +163,14 @@ Error/status terakhir saat handoff ini diperbarui:
   - `GOCACHE=/tmp/go-build-cache make test-unit`
   - `GOCACHE=/tmp/go-build-cache make build-all`
   - `make ci-integration COMPOSE="docker compose"`
-- Namun status remote terakhir masih gagal:
-  - GitHub Actions run `26633670499` untuk commit `bbaee32` berstatus `completed/failure` pada `2026-05-30`.
-  - Job yang gagal tetap `integration-e2e`.
-  - Check annotation yang terlihat publik masih generik: `Process completed with exit code 2.`
-  - Artinya masalah remote belum terisolasi penuh walau jalur lokal sudah stabil.
-- Mitigasi terbaru yang belum diverifikasi di GitHub:
+- Mitigasi timing terbaru untuk runner CI:
   - `scripts/test-e2e.sh` tidak lagi memakai `sleep 2` untuk duplicate event Kafka.
   - Validasi duplicate event sekarang memakai polling bounded sampai inbox inventory/payment settle.
   - Fallback Redis pada E2E juga dipanggil lewat retry bounded.
+- Status remote terbaru sudah hijau:
+  - GitHub Actions run `26681168668` untuk commit `5ff6881` berstatus `completed/success` pada `2026-05-30`.
+  - GitHub Actions run `26681209486` untuk commit `45e4571` berstatus `completed/success` pada `2026-05-30`.
+  - Rangkaian kegagalan remote sebelumnya pada `26633670499` dan `26633113018` sudah tertutup.
 - Catatan environment lokal terbaru:
   - re-run `make ci-integration COMPOSE="docker compose"` sempat terblokir konflik host port `6379`;
   - pemicunya container lain di mesin ini: `flashsale-redis`;
@@ -193,15 +194,11 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 Langkah paling masuk akal berikutnya:
 
 1. Buat Pull Request dari branch phase terakhir ke `main`.
-2. Investigasi detail kegagalan remote `integration-e2e` untuk run `26633670499`.
-3. Push mitigasi polling async Kafka di `scripts/test-e2e.sh`, lalu cek apakah run GitHub terbaru membaik.
-4. Jika masih gagal, ambil compose log/artifact dari GitHub Actions atau tambah logging lebih kaya pada workflow agar root cause terlihat.
-5. Setelah CI hijau, buat Pull Request ke `main`.
-6. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-7. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
-8. Ambil screenshot Jaeger trace untuk portfolio.
-9. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-10. Jika ingin lanjut production-like:
+2. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
+3. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
+4. Ambil screenshot Jaeger trace untuk portfolio.
+5. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+6. Jika ingin lanjut production-like:
    - perluas dashboard Grafana;
    - tambah GitHub Actions integration test dengan service container.
    - tambah business metrics untuk outbox/inbox/DLQ.
@@ -244,7 +241,7 @@ Command tambahan untuk investigasi CI remote:
 
 ```bash
 curl -fsSL "https://api.github.com/repos/odealidj/go-distributed-toko-bangunan/actions/runs?branch=phase/11-ci-integration&per_page=3" | jq
-curl -fsSL "https://api.github.com/repos/odealidj/go-distributed-toko-bangunan/actions/runs/26633670499/jobs" | jq
+curl -fsSL "https://api.github.com/repos/odealidj/go-distributed-toko-bangunan/actions/runs/26681209486/jobs" | jq
 ```
 
 ### Observability
@@ -324,15 +321,12 @@ Sudah terpenuhi:
 
 Perlu diverifikasi di GitHub:
 
-- root cause kegagalan `integration-e2e` di remote sudah ditemukan dan diperbaiki;
 - status CI benar-benar hijau setelah workflow berjalan di remote.
 
 ## 9. Known Gaps / Roadmap
 
 Belum selesai dan masih layak jadi phase berikutnya:
 
-- investigasi kegagalan remote `integration-e2e` yang masih menyisakan `exit code 2` generik.
-- perbaiki observability workflow CI agar log kegagalan lebih mudah dibaca tanpa akses artifact terautentikasi.
 - load/stress test tuning setelah baseline nyata.
 - perluasan dashboard Grafana dan dokumentasi screenshot hasil demo.
 
