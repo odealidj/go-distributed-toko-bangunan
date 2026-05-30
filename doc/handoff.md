@@ -31,22 +31,23 @@ Target utama:
 Branch aktif terakhir:
 
 ```text
-phase/11-ci-integration
+phase/12-portfolio-showcase
 ```
 
 Commit terakhir:
 
 ```text
-45e4571 stabilkan e2e kafka
+bac0c11 tambah panduan portfolio
 ```
 
 Commit sebelumnya yang relevan:
 
 ```text
+88715a4 rapikan handoff ci
+45e4571 stabilkan e2e kafka
 5ff6881 update handoff ci
 bbaee32 perkuat readiness ci
 72999f8 rapikan workflow ci
-fe23ecd tambah ci integration
 ```
 
 Branch phase yang sudah dibuat:
@@ -63,6 +64,7 @@ phase/08-ci-performance-portfolio
 phase/09-metrics-dashboard
 phase/10-kafka-dlq-retry
 phase/11-ci-integration
+phase/12-portfolio-showcase
 ```
 
 ## 3. File dan Area yang Sudah Diubah
@@ -101,6 +103,7 @@ doc/testing/testing-strategy.md
 doc/testing/performance-testing-k6.md
 doc/observability/tracing-and-idempotency.md
 doc/demo/demo-script.md
+doc/demo/portfolio-showcase.md
 ```
 
 File yang terakhir berubah dan relevan untuk investigasi CI:
@@ -116,6 +119,15 @@ README.md
 doc/deployment/docker-compose-architecture.md
 doc/deployment/local-development.md
 doc/testing/testing-strategy.md
+```
+
+File yang terakhir berubah dan relevan untuk showcase portfolio:
+
+```text
+README.md
+doc/demo/portfolio-showcase.md
+doc/README.md
+doc/implementation/implementation-phases.md
 ```
 
 ## 4. Keputusan Penting
@@ -171,6 +183,11 @@ Error/status terakhir saat handoff ini diperbarui:
   - GitHub Actions run `26681168668` untuk commit `5ff6881` berstatus `completed/success` pada `2026-05-30`.
   - GitHub Actions run `26681209486` untuk commit `45e4571` berstatus `completed/success` pada `2026-05-30`.
   - Rangkaian kegagalan remote sebelumnya pada `26633670499` dan `26633113018` sudah tertutup.
+- Phase terbaru yang sedang dikerjakan:
+  - branch `phase/12-portfolio-showcase`;
+  - commit `bac0c11 tambah panduan portfolio`;
+  - README sekarang punya diagram arsitektur ringkas, highlight 5 menit, dan section tradeoff;
+  - dokumen baru `doc/demo/portfolio-showcase.md` menjelaskan screenshot, talking point, dan urutan demo untuk portfolio.
 - Catatan environment lokal terbaru:
   - re-run `make ci-integration COMPOSE="docker compose"` sempat terblokir konflik host port `6379`;
   - pemicunya container lain di mesin ini: `flashsale-redis`;
@@ -195,10 +212,11 @@ Langkah paling masuk akal berikutnya:
 
 1. Buat Pull Request dari branch phase terakhir ke `main`.
 2. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-3. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
+3. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
 4. Ambil screenshot Jaeger trace untuk portfolio.
 5. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-6. Jika ingin lanjut production-like:
+6. Ambil screenshot GitHub Actions run terbaru yang hijau.
+7. Jika ingin lanjut production-like:
    - perluas dashboard Grafana;
    - tambah GitHub Actions integration test dengan service container.
    - tambah business metrics untuk outbox/inbox/DLQ.
@@ -313,6 +331,7 @@ Sudah terpenuhi:
 - `make perf-smoke` menjalankan K6 smoke test.
 - CI workflow sudah dibuat.
 - README portfolio sudah diperkuat.
+- Panduan showcase portfolio sudah tersedia.
 - `/metrics` service sudah tersedia.
 - Metrics stack lokal dengan Prometheus/Grafana/node-exporter/exporter sudah tersedia.
 - Kafka consumer retry/backoff dan DLQ dasar sudah tersedia.
