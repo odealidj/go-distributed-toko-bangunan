@@ -37,7 +37,14 @@ phase/11-ci-integration
 Commit terakhir:
 
 ```text
-cek `git log -1 --oneline` pada branch aktif
+bbaee32 perkuat readiness ci
+```
+
+Commit sebelumnya yang relevan:
+
+```text
+72999f8 rapikan workflow ci
+fe23ecd tambah ci integration
 ```
 
 Branch phase yang sudah dibuat:
@@ -94,6 +101,21 @@ doc/observability/tracing-and-idempotency.md
 doc/demo/demo-script.md
 ```
 
+File yang terakhir berubah dan relevan untuk investigasi CI:
+
+```text
+.github/workflows/ci.yml
+scripts/ci-integration.sh
+scripts/test-e2e.sh
+services/order-service/internal/adapter/inbound/rest/health.go
+services/catalog-inventory-service/internal/adapter/inbound/rest/health.go
+services/payment-service/internal/adapter/inbound/rest/health.go
+README.md
+doc/deployment/docker-compose-architecture.md
+doc/deployment/local-development.md
+doc/testing/testing-strategy.md
+```
+
 ## 4. Keputusan Penting
 
 Keputusan arsitektur:
@@ -128,11 +150,22 @@ Keputusan implementasi:
 
 ## 5. Error Terakhir dan Statusnya
 
-Error terbuka terakhir sebelum perbaikan ini:
+Error/status terakhir saat handoff ini diperbarui:
 
-- GitHub Actions `integration-e2e` di branch `phase/11-ci-integration` sempat gagal dengan `exit code 2` walau lokal lolos.
-  - Dugaan kuat: startup gate di CI masih memakai `/healthz`, padahal endpoint itu selalu `200` meski dependency inti belum siap.
-  - Perbaikan: `scripts/ci-integration.sh` dan `scripts/test-e2e.sh` sekarang menunggu `/readyz`; `readyz` mengembalikan `503` saat database belum siap.
+- Commit `bbaee32 perkuat readiness ci` sudah memperbaiki gating startup lokal:
+  - `scripts/ci-integration.sh` menunggu `/readyz`, bukan `/healthz`;
+  - `scripts/test-e2e.sh` juga menunggu `/readyz` dan mengecek `payment-service`;
+  - `readyz` di tiga service sekarang mengembalikan `503` jika dependency inti belum siap.
+- Validasi lokal untuk commit tersebut lolos:
+  - `bash -n scripts/ci-integration.sh scripts/test-e2e.sh`
+  - `GOCACHE=/tmp/go-build-cache make test-unit`
+  - `GOCACHE=/tmp/go-build-cache make build-all`
+  - `make ci-integration COMPOSE="docker compose"`
+- Namun status remote terakhir masih gagal:
+  - GitHub Actions run `26633670499` untuk commit `bbaee32` berstatus `completed/failure` pada `2026-05-30`.
+  - Job yang gagal tetap `integration-e2e`.
+  - Check annotation yang terlihat publik masih generik: `Process completed with exit code 2.`
+  - Artinya masalah remote belum terisolasi penuh walau jalur lokal sudah stabil.
 
 Error penting yang pernah ditemukan dan sudah diperbaiki:
 
@@ -152,12 +185,14 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 Langkah paling masuk akal berikutnya:
 
 1. Buat Pull Request dari branch phase terakhir ke `main`.
-2. Pastikan GitHub Actions CI hijau setelah perbaikan readiness gate.
-3. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-4. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
-5. Ambil screenshot Jaeger trace untuk portfolio.
-6. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-7. Jika ingin lanjut production-like:
+2. Investigasi detail kegagalan remote `integration-e2e` untuk run `26633670499`.
+3. Ambil compose log/artifact dari GitHub Actions atau tambah logging lebih kaya pada workflow agar root cause terlihat.
+4. Setelah CI hijau, buat Pull Request ke `main`.
+5. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
+6. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
+7. Ambil screenshot Jaeger trace untuk portfolio.
+8. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+9. Jika ingin lanjut production-like:
    - perluas dashboard Grafana;
    - tambah GitHub Actions integration test dengan service container.
    - tambah business metrics untuk outbox/inbox/DLQ.
@@ -194,6 +229,13 @@ make proto-validate
 make test-integration
 make test-e2e
 make ci-integration COMPOSE="docker compose"
+```
+
+Command tambahan untuk investigasi CI remote:
+
+```bash
+curl -fsSL "https://api.github.com/repos/odealidj/go-distributed-toko-bangunan/actions/runs?branch=phase/11-ci-integration&per_page=3" | jq
+curl -fsSL "https://api.github.com/repos/odealidj/go-distributed-toko-bangunan/actions/runs/26633670499/jobs" | jq
 ```
 
 ### Observability
@@ -273,13 +315,15 @@ Sudah terpenuhi:
 
 Perlu diverifikasi di GitHub:
 
+- root cause kegagalan `integration-e2e` di remote sudah ditemukan dan diperbaiki;
 - status CI benar-benar hijau setelah workflow berjalan di remote.
 
 ## 9. Known Gaps / Roadmap
 
 Belum selesai dan masih layak jadi phase berikutnya:
 
-- verifikasi workflow baru benar-benar hijau di GitHub remote.
+- investigasi kegagalan remote `integration-e2e` yang masih menyisakan `exit code 2` generik.
+- perbaiki observability workflow CI agar log kegagalan lebih mudah dibaca tanpa akses artifact terautentikasi.
 - load/stress test tuning setelah baseline nyata.
 - perluasan dashboard Grafana dan dokumentasi screenshot hasil demo.
 
@@ -302,6 +346,7 @@ git status --short --branch
 make proto-validate
 GOCACHE=/tmp/go-build-cache make test-unit
 GOCACHE=/tmp/go-build-cache make build-all
+make ci-integration COMPOSE="docker compose"
 ```
 
 Jika akan melanjutkan feature baru, buat branch baru dari branch phase terakhir atau dari `main` setelah PR phase terakhir digabung.
