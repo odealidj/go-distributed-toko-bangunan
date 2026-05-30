@@ -507,7 +507,42 @@ Acceptance criteria:
 - E2E success/failure/idempotency/redis-down scenario jalan di CI;
 - compose logs tersedia saat job gagal.
 
-## 16. Urutan Eksekusi Praktis
+## 16. Phase 12 - Portfolio Showcase
+
+Branch:
+
+```text
+phase/12-portfolio-showcase
+```
+
+Tujuan:
+
+Merapikan artefak presentasi project agar repo ini lebih kuat untuk CV, technical screening, dan interview backend/distributed systems.
+
+Cakupan:
+
+- README diperkuat sebagai halaman utama repo;
+- diagram arsitektur ringkas di README;
+- panduan showcase portfolio;
+- checklist artefak screenshot dan demo;
+- talking point singkat untuk recruiter/interviewer;
+- sinkronisasi dokumen agar status CI dan demo terbaru jelas.
+
+Rujukan:
+
+- `README.md`
+- `doc/demo/demo-script.md`
+- `doc/demo/portfolio-showcase.md`
+- `doc/handoff.md`
+
+Acceptance criteria:
+
+- pembaca bisa memahami nilai project dalam 3-5 menit;
+- reviewer tahu apa yang perlu dibuka untuk melihat Saga, Kafka, tracing, dan CI;
+- ada panduan konkret untuk mengambil screenshot dan menjalankan demo;
+- artefak portfolio konsisten dengan implementasi terbaru.
+
+## 17. Urutan Eksekusi Praktis
 
 Urutan kerja yang direkomendasikan:
 
@@ -522,6 +557,7 @@ Urutan kerja yang direkomendasikan:
 9. `phase/09-metrics-dashboard`
 10. `phase/10-kafka-dlq-retry`
 11. `phase/11-ci-integration`
+12. `phase/12-portfolio-showcase`
 
 Alasan:
 

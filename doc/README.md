@@ -44,6 +44,7 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Strategi Testing](testing/testing-strategy.md)
 - [Performance Testing dengan K6](testing/performance-testing-k6.md)
 - [Demo Script](demo/demo-script.md)
+- [Panduan Showcase Portfolio](demo/portfolio-showcase.md)
 - [Panduan Implementasi AI](prompts/implementation-guide.md)
 
 ## Cara Penggunaan

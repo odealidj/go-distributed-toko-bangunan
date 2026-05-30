@@ -21,6 +21,33 @@ Service utama:
 - `catalog-inventory-service`
 - `payment-service`
 
+Diagram ringkas:
+
+```mermaid
+flowchart LR
+    Client["Client / Demo CLI"] --> Order["order-service"]
+    Order -->|gRPC| Inventory["catalog-inventory-service"]
+    Order -->|gRPC| Payment["payment-service"]
+
+    Order -->|PostgreSQL| OrderDB[("order_db")]
+    Inventory -->|PostgreSQL| InventoryDB[("inventory_db")]
+    Payment -->|PostgreSQL| PaymentDB[("payment_db")]
+
+    Inventory -->|Redis cache| Redis[("Redis")]
+
+    Order -->|Kafka outbox publish| Kafka["Kafka"]
+    Kafka --> Inventory
+    Kafka --> Payment
+
+    Order -. traces .-> OTel["OTel Collector / Jaeger"]
+    Inventory -. traces .-> OTel
+    Payment -. traces .-> OTel
+
+    Order -. metrics .-> Prom["Prometheus / Grafana"]
+    Inventory -. metrics .-> Prom
+    Payment -. metrics .-> Prom
+```
+
 Flow checkout:
 
 1. client memanggil `POST /orders` ke `order-service`;
@@ -44,6 +71,16 @@ Project ini sengaja didesain untuk menunjukkan hal yang biasanya dicari saat int
 - command-line demo untuk success, failure, duplicate event, dan Redis down;
 - K6 smoke/load scenario untuk endpoint utama;
 - dokumentasi teknis dan ADR yang bisa dibaca manusia maupun AI.
+
+## Yang Bisa Ditunjukkan Dalam 5 Menit
+
+Jika reviewer hanya memberi waktu singkat, bagian yang paling kuat untuk ditunjukkan adalah:
+
+1. `POST /orders` menjalankan Saga orchestration lintas 3 service.
+2. Payment failure memicu compensation dan stock kembali seperti semula.
+3. Duplicate Kafka event tidak menggandakan efek bisnis karena inbox/idempotency.
+4. Jaeger memperlihatkan trace lintas REST, gRPC, Kafka, PostgreSQL, dan Redis.
+5. GitHub Actions menjalankan container stack nyata, bukan hanya unit test.
 
 ## Quick Start
 
@@ -135,6 +172,11 @@ Jika memakai Docker sebagai runtime container:
 make perf-smoke CONTAINER=docker
 ```
 
+Panduan showcase dan checklist artefak portfolio:
+
+- [Panduan Showcase Portfolio](doc/demo/portfolio-showcase.md)
+- [Demo Script](doc/demo/demo-script.md)
+
 ## CI
 
 Workflow GitHub Actions ada di:
@@ -150,6 +192,13 @@ Cakupan CI:
 - `make ci-integration COMPOSE="docker compose"`
 - `make build-all`
 - docker build untuk tiga service
+
+Run yang sudah membuktikan phase CI ini hijau:
+
+- `26681168668` untuk `5ff6881`
+- `26681209486` untuk `45e4571`
+
+Keduanya menjalankan job `test-build`, `integration-e2e`, dan matrix `docker-build`.
 
 ## Struktur Penting
 
@@ -174,6 +223,16 @@ scripts/
 - [Repository Structure](doc/implementation/repository-structure.md)
 - [Testing Strategy](doc/testing/testing-strategy.md)
 - [Performance Testing K6](doc/testing/performance-testing-k6.md)
+- [Panduan Showcase Portfolio](doc/demo/portfolio-showcase.md)
 - [Tracing dan Idempotency](doc/observability/tracing-and-idempotency.md)
 - [ADR Index](doc/adr/README.md)
 - [Handoff Project](doc/handoff.md)
+
+## Tradeoff yang Sengaja Diambil
+
+Beberapa keputusan memang condong ke demo yang kredibel dan murah dijalankan:
+
+- orchestrator checkout masih berada di `order-service`, tetapi boundary-nya disiapkan agar mudah dipisah nanti;
+- Kafka single-node dan PostgreSQL single instance dipakai untuk biaya dan kompleksitas lokal yang rendah;
+- Redis diposisikan sebagai cache non-kritikal, bukan sumber kebenaran;
+- CI container stack dijalankan satu node agar bisa tetap realistis tanpa biaya cloud.
