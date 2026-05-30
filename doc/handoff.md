@@ -112,6 +112,10 @@ doc/demo/portfolio-showcase.md
 File yang terakhir berubah dan relevan untuk business completeness:
 
 ```text
+.dockerignore
+deployments/docker/service.Dockerfile
+doc/deployment/local-development.md
+doc/deployment/docker-compose-architecture.md
 services/order-service/internal/adapter/inbound/rest/orders.go
 services/order-service/internal/adapter/inbound/kafka/payment_events_consumer.go
 services/order-service/internal/adapter/outbound/postgres/order_repository.go
@@ -207,10 +211,21 @@ Error/status terakhir saat handoff ini diperbarui:
   - `bash -n scripts/test-e2e.sh`
   - `GOCACHE=/tmp/go-build-cache make test-unit`
   - `GOCACHE=/tmp/go-build-cache make build-all`
+  - `go test -mod=readonly ./internal/adapter/outbound/postgres` pada `order-service`, `catalog-inventory-service`, dan `payment-service`
+  - host-run E2E penuh dengan infra Compose + binary lokal:
+    - `JAEGER_UI_PORT=16687 make infra-up`
+    - `make order-migrate-compose inventory-migrate-compose payment-migrate-compose kafka-topics inventory-seed`
+    - jalankan `./bin/order-service`, `./bin/catalog-inventory-service`, `./bin/payment-service`
+    - `make test-e2e COMPOSE="podman compose"`
+  - hasil terakhir: `semua scenario E2E berhasil`
 - Catatan environment lokal terbaru:
-  - re-run full stack seperti `make ci-integration COMPOSE="docker compose"` atau `make test-e2e` sempat terblokir konflik host port `6379`;
-  - pemicunya container lain di mesin ini: `flashsale-redis`;
-  - ini terlihat sebagai konflik environment lokal, bukan bukti regresi pada perubahan script atau code phase 13.
+  - konflik terbaru bukan lagi di Redis, tetapi di Jaeger host port `16686` karena stack lain aktif di mesin ini;
+  - solusi yang sudah diterapkan: host port Compose kini bisa dioverride, misalnya `JAEGER_UI_PORT=16687`;
+  - build image via `compose --build` di Podman tetap relatif lambat untuk validasi lokal;
+  - mitigasi yang sudah diterapkan:
+    - tambah `.dockerignore`;
+    - rapikan cache layer pada `deployments/docker/service.Dockerfile`;
+    - gunakan host-run service binary untuk validasi end-to-end lokal jika tidak butuh image build.
 
 Error penting yang pernah ditemukan dan sudah diperbaiki:
 
@@ -230,13 +245,14 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 Langkah paling masuk akal berikutnya:
 
 1. Push branch `phase/13-business-completeness`.
-2. Bebaskan host port `6379`, lalu jalankan ulang `make ci-integration COMPOSE="docker compose"` atau `make test-e2e`.
-3. Buat Pull Request dari branch phase terakhir ke `main`.
-4. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-5. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
-6. Ambil screenshot Jaeger trace untuk portfolio.
-7. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-8. Ambil screenshot GitHub Actions run terbaru yang hijau.
+2. Commit dan push follow-up untuk `.dockerignore`, Dockerfile cache layer, dan dokumentasi port override.
+3. Jika ingin validasi berbasis container penuh, jalankan ulang `JAEGER_UI_PORT=16687 make ci-integration COMPOSE="docker compose"`.
+4. Buat Pull Request dari branch phase terakhir ke `main`.
+5. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
+6. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
+7. Ambil screenshot Jaeger trace untuk portfolio.
+8. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+9. Ambil screenshot GitHub Actions run terbaru yang hijau.
 
 ## 7. Command yang Harus Dijalankan
 

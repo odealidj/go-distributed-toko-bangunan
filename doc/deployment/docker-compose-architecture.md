@@ -86,7 +86,8 @@ flowchart LR
 
 Catatan:
 
-- Jika port `8080` bentrok antara Kafka UI dan order-service, Kafka UI harus dipublish ke `8090`.
+- Kafka UI dipublish ke host `8090` agar tidak bentrok dengan `order-service`.
+- Host port pada `docker-compose.yml` bisa dioverride via environment variable, misalnya `JAEGER_UI_PORT=16687 make infra-up`.
 - Service Go di dalam container menggunakan `kafka:9092`.
 - Tool dari host menggunakan `localhost:29092`.
 

@@ -160,6 +160,35 @@ make infra-up COMPOSE="docker compose"
 make up COMPOSE="docker compose"
 ```
 
+Jika host port tertentu bentrok dengan stack lain, override port yang dibutuhkan saat menjalankan Compose:
+
+```text
+JAEGER_UI_PORT=16687 make infra-up
+JAEGER_UI_PORT=16687 ORDER_READY_URL=http://localhost:8080/readyz CATALOG_READY_URL=http://localhost:8081/readyz PAYMENT_READY_URL=http://localhost:8082/readyz make ci-integration
+```
+
+Host port yang bisa dioverride antara lain:
+
+```text
+POSTGRES_PORT
+REDIS_PORT
+KAFKA_EXTERNAL_PORT
+KAFKA_UI_PORT
+OTEL_GRPC_PORT
+OTEL_HTTP_PORT
+JAEGER_UI_PORT
+JAEGER_COLLECTOR_PORT
+ORDER_HTTP_PORT
+CATALOG_HTTP_PORT
+PAYMENT_HTTP_PORT
+PROMETHEUS_PORT
+GRAFANA_PORT
+NODE_EXPORTER_PORT
+POSTGRES_EXPORTER_PORT
+REDIS_EXPORTER_PORT
+KAFKA_EXPORTER_PORT
+```
+
 ## 8. Workflow Debug Lokal
 
 Untuk debug service dari IDE/local terminal:
