@@ -232,6 +232,7 @@ Error/status terakhir saat handoff ini diperbarui:
   - `scripts/test-e2e.sh` kini memakai retry window yang lebih longgar untuk duplicate event, manual payment settle, dan Redis fallback;
   - saat settle gagal, script sekarang membuang snapshot state order/payment/inventory dan `compose ps` ke stderr agar log CI lebih informatif;
   - `scripts/ci-integration.sh` juga menambah window tunggu untuk `/readyz` dan `pg_isready`.
+  - `scripts/ci-integration.sh` dan `scripts/test-e2e.sh` sekarang juga mengeluarkan GitHub Actions annotation (`::error::`) yang menyebut stage/scenario saat gagal, agar root cause bisa dilihat lewat Check Run API tanpa harus membuka log privat.
 - Catatan environment lokal terbaru:
   - konflik terbaru bukan lagi di Redis, tetapi di Jaeger host port `16686` karena stack lain aktif di mesin ini;
   - solusi yang sudah diterapkan: host port Compose kini bisa dioverride, misalnya `JAEGER_UI_PORT=16687`;

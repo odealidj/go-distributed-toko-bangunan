@@ -20,6 +20,7 @@ INSUFFICIENT_QTY="${INSUFFICIENT_QTY:-10000}"
 DUPLICATE_EVENT_RETRY_ATTEMPTS="${DUPLICATE_EVENT_RETRY_ATTEMPTS:-30}"
 MANUAL_SETTLE_RETRY_ATTEMPTS="${MANUAL_SETTLE_RETRY_ATTEMPTS:-30}"
 REDIS_FALLBACK_RETRY_ATTEMPTS="${REDIS_FALLBACK_RETRY_ATTEMPTS:-15}"
+CURRENT_SCENARIO="setup"
 
 redis_stopped=0
 
@@ -34,6 +35,11 @@ compose() {
   "${COMPOSE_CMD[@]}" "$@"
 }
 
+annotate_failure() {
+  local message="$1"
+  echo "::error title=test-e2e::scenario=${CURRENT_SCENARIO}; ${message}" >&2
+}
+
 db_query() {
   local database="$1"
   local sql="$2"
@@ -45,7 +51,7 @@ assert_equals() {
   local actual="$2"
   local message="$3"
   if [[ "${expected}" != "${actual}" ]]; then
-    echo "assertion failed: ${message}. expected=${expected} actual=${actual}" >&2
+    annotate_failure "${message}. expected=${expected} actual=${actual}"
     exit 1
   fi
 }
@@ -54,7 +60,7 @@ assert_true() {
   local value="$1"
   local message="$2"
   if [[ "${value}" != "true" ]]; then
-    echo "assertion failed: ${message}" >&2
+    annotate_failure "${message}"
     exit 1
   fi
 }
@@ -65,7 +71,7 @@ assert_http_ok() {
   local status
   status="$(curl -sS -o /tmp/toko-http-body.$$ -w '%{http_code}' "${url}")"
   if [[ "${status}" != "200" ]]; then
-    echo "assertion failed: ${message}. http_status=${status}" >&2
+    annotate_failure "${message}. http_status=${status}"
     cat /tmp/toko-http-body.$$ >&2
     rm -f /tmp/toko-http-body.$$
     exit 1
@@ -345,6 +351,7 @@ assert_http_ok "${CATALOG_BASE_URL}/readyz" "catalog-inventory-service harus rea
 assert_http_ok "${PAYMENT_BASE_URL}/readyz" "payment-service harus ready"
 
 echo "[1/5] checkout success"
+CURRENT_SCENARIO="checkout success"
 success_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
 success_response="$(post_order SUCCESS "${SUCCESS_QTY}")"
 success_order_id="$(jq -r '.data.id' <<<"${success_response}")"
@@ -361,6 +368,7 @@ assert_equals "COMMITTED" "${success_reservation_status}" "status reservasi succ
 assert_equals "$(decimal_trim "${success_expected_on_hand}")" "$(decimal_trim "${success_after_on_hand}")" "on_hand setelah success"
 
 echo "[2/5] insufficient stock"
+CURRENT_SCENARIO="insufficient stock"
 insufficient_response="$(post_order SUCCESS "${INSUFFICIENT_QTY}")"
 insufficient_order_id="$(jq -r '.data.id' <<<"${insufficient_response}")"
 insufficient_status="$(jq -r '.data.status' <<<"${insufficient_response}")"
@@ -371,6 +379,7 @@ assert_equals "0" "${insufficient_payment_count}" "payment tidak boleh dibuat sa
 assert_equals "0" "${insufficient_reservation_count}" "reservasi tidak boleh dibuat saat stock kurang"
 
 echo "[3/5] payment failed compensation"
+CURRENT_SCENARIO="payment failed compensation"
 failure_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
 failure_response="$(post_order FAILURE "${FAILURE_QTY}")"
 failure_order_id="$(jq -r '.data.id' <<<"${failure_response}")"
@@ -386,6 +395,7 @@ assert_equals "RELEASED" "${failure_reservation_status}" "status reservasi compe
 assert_equals "$(decimal_trim "${failure_before_on_hand}")" "$(decimal_trim "${failure_after_on_hand}")" "on_hand harus kembali setelah compensation"
 
 echo "[4/5] duplicate event idempotency"
+CURRENT_SCENARIO="duplicate event idempotency"
 duplicate_event_row="$(db_query order_db "SELECT id, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), correlation_id, coalesce(causation_id, ''), coalesce(traceparent, ''), payload::text FROM outbox_events WHERE aggregate_id = '${success_order_id}' AND event_type = 'OrderConfirmed' ORDER BY created_at DESC LIMIT 1")"
 IFS='|' read -r duplicate_event_id duplicate_occurred_at duplicate_correlation_id duplicate_causation_id duplicate_traceparent duplicate_payload <<<"$(sed 's/\t/|/g' <<<"${duplicate_event_row}")"
 duplicate_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
@@ -401,7 +411,7 @@ publish_duplicate_order_event \
   "${duplicate_payload}"
 
 retry "${DUPLICATE_EVENT_RETRY_ATTEMPTS}" 1 duplicate_event_is_settled "${duplicate_event_id}" "${duplicate_before_on_hand}" || {
-  echo "assertion failed: duplicate event belum settle dalam waktu yang diharapkan" >&2
+  annotate_failure "duplicate event belum settle dalam waktu yang diharapkan. event_id=${duplicate_event_id}"
   dump_debug_snapshot "duplicate event belum settle" "${success_order_id}" "${success_payment_id}"
   exit 1
 }
@@ -414,6 +424,7 @@ assert_equals "1" "${inventory_inbox_count}" "inventory inbox harus tetap satu e
 assert_equals "1" "${payment_inbox_count}" "payment inbox harus tetap satu event"
 
 echo "[5/8] manual payment success"
+CURRENT_SCENARIO="manual payment success"
 manual_success_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
 manual_success_response="$(post_order_response MANUAL 1)"
 manual_success_order_id="$(jq -r '.data.id' <<<"${manual_success_response}")"
@@ -425,12 +436,13 @@ post_payment_succeed "${manual_success_payment_id}" >/dev/null
 
 manual_success_expected_on_hand="$(decimal_sub "${manual_success_before_on_hand}" "1")"
 retry "${MANUAL_SETTLE_RETRY_ATTEMPTS}" 1 manual_payment_success_is_settled "${manual_success_order_id}" "${manual_success_payment_id}" "${manual_success_expected_on_hand}" || {
-  echo "assertion failed: manual payment success belum settle dalam waktu yang diharapkan" >&2
+  annotate_failure "manual payment success belum settle dalam waktu yang diharapkan. order_id=${manual_success_order_id} payment_id=${manual_success_payment_id}"
   dump_debug_snapshot "manual payment success belum settle" "${manual_success_order_id}" "${manual_success_payment_id}"
   exit 1
 }
 
 echo "[6/8] manual payment failed"
+CURRENT_SCENARIO="manual payment failed"
 manual_fail_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
 manual_fail_response="$(post_order_response MANUAL 1)"
 manual_fail_order_id="$(jq -r '.data.id' <<<"${manual_fail_response}")"
@@ -441,12 +453,13 @@ assert_equals "WAITING_PAYMENT" "${manual_fail_status}" "status order manual fai
 post_payment_fail "${manual_fail_payment_id}" >/dev/null
 
 retry "${MANUAL_SETTLE_RETRY_ATTEMPTS}" 1 manual_payment_failed_is_settled "${manual_fail_order_id}" "${manual_fail_payment_id}" "${manual_fail_before_on_hand}" || {
-  echo "assertion failed: manual payment failed belum settle dalam waktu yang diharapkan" >&2
+  annotate_failure "manual payment failed belum settle dalam waktu yang diharapkan. order_id=${manual_fail_order_id} payment_id=${manual_fail_payment_id}"
   dump_debug_snapshot "manual payment failed belum settle" "${manual_fail_order_id}" "${manual_fail_payment_id}"
   exit 1
 }
 
 echo "[7/8] manual order cancel"
+CURRENT_SCENARIO="manual order cancel"
 manual_cancel_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
 manual_cancel_response="$(post_order_response MANUAL 1)"
 manual_cancel_order_id="$(jq -r '.data.id' <<<"${manual_cancel_response}")"
@@ -457,12 +470,13 @@ assert_equals "WAITING_PAYMENT" "${manual_cancel_status}" "status order manual c
 post_order_cancel "${manual_cancel_order_id}" >/dev/null
 
 retry "${MANUAL_SETTLE_RETRY_ATTEMPTS}" 1 manual_order_cancel_is_settled "${manual_cancel_order_id}" "${manual_cancel_payment_id}" "${manual_cancel_before_on_hand}" || {
-  echo "assertion failed: manual order cancel belum settle dalam waktu yang diharapkan" >&2
+  annotate_failure "manual order cancel belum settle dalam waktu yang diharapkan. order_id=${manual_cancel_order_id} payment_id=${manual_cancel_payment_id}"
   dump_debug_snapshot "manual order cancel belum settle" "${manual_cancel_order_id}" "${manual_cancel_payment_id}"
   exit 1
 }
 
 echo "[8/8] redis unavailable fallback"
+CURRENT_SCENARIO="redis unavailable fallback"
 compose stop redis >/dev/null
 redis_stopped=1
 

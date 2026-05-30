@@ -13,9 +13,16 @@ AUTO_CLEANUP="${CI_INTEGRATION_AUTO_CLEANUP:-1}"
 ORDER_READY_URL="${ORDER_READY_URL:-http://localhost:8080/readyz}"
 CATALOG_READY_URL="${CATALOG_READY_URL:-http://localhost:8081/readyz}"
 PAYMENT_READY_URL="${PAYMENT_READY_URL:-http://localhost:8082/readyz}"
+CURRENT_STAGE="[0/7] init"
 
 compose() {
   "${COMPOSE_CMD[@]}" "$@"
+}
+
+on_error() {
+  local exit_code="$1"
+  echo "::error title=ci-integration::stage=${CURRENT_STAGE}; exit_code=${exit_code}" >&2
+  exit "${exit_code}"
 }
 
 cleanup() {
@@ -23,6 +30,7 @@ cleanup() {
     compose down -v --remove-orphans >/dev/null 2>&1 || true
   fi
 }
+trap 'on_error $?' ERR
 trap cleanup EXIT
 
 retry() {
@@ -62,27 +70,34 @@ wait_postgres_ready() {
   retry 45 2 compose exec -T postgres pg_isready -U toko -d order_db >/dev/null 2>&1
 }
 
+CURRENT_STAGE="[1/7] reset compose state"
 echo "[1/7] reset compose state"
 compose down -v --remove-orphans >/dev/null 2>&1 || true
 
+CURRENT_STAGE="[2/7] start infra"
 echo "[2/7] start infra"
 make infra-up COMPOSE="${COMPOSE:-docker compose}"
 wait_postgres_ready
 
+CURRENT_STAGE="[3/7] migrate database dan buat topic"
 echo "[3/7] migrate database dan buat topic"
 make order-migrate-compose inventory-migrate-compose payment-migrate-compose COMPOSE="${COMPOSE:-docker compose}"
 retry 10 3 make kafka-topics COMPOSE="${COMPOSE:-docker compose}"
 
+CURRENT_STAGE="[4/7] start app services"
 echo "[4/7] start app services"
 compose --profile app up -d --build
 wait_app_stack
 
+CURRENT_STAGE="[5/7] seed inventory dan jalankan integration test"
 echo "[5/7] seed inventory dan jalankan integration test"
 make inventory-seed COMPOSE="${COMPOSE:-docker compose}"
 make test-integration COMPOSE="${COMPOSE:-docker compose}"
 wait_app_stack
 
+CURRENT_STAGE="[6/7] jalankan e2e test"
 echo "[6/7] jalankan e2e test"
 make test-e2e COMPOSE="${COMPOSE:-docker compose}"
 
+CURRENT_STAGE="[7/7] selesai"
 echo "[7/7] selesai"
