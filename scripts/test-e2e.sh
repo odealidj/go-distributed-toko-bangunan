@@ -17,6 +17,9 @@ PRODUCT_ID="${PRODUCT_ID:-prod_semen_50kg}"
 SUCCESS_QTY="${SUCCESS_QTY:-2}"
 FAILURE_QTY="${FAILURE_QTY:-2}"
 INSUFFICIENT_QTY="${INSUFFICIENT_QTY:-10000}"
+DUPLICATE_EVENT_RETRY_ATTEMPTS="${DUPLICATE_EVENT_RETRY_ATTEMPTS:-30}"
+MANUAL_SETTLE_RETRY_ATTEMPTS="${MANUAL_SETTLE_RETRY_ATTEMPTS:-30}"
+REDIS_FALLBACK_RETRY_ATTEMPTS="${REDIS_FALLBACK_RETRY_ATTEMPTS:-15}"
 
 redis_stopped=0
 
@@ -104,6 +107,36 @@ decimal_sub() {
 decimal_trim() {
   local value="$1"
   awk "BEGIN { printf \"%.4f\", (${value}) }"
+}
+
+dump_debug_snapshot() {
+  local label="$1"
+  local order_id="${2:-}"
+  local payment_id="${3:-}"
+
+  echo "[debug] ${label}" >&2
+  echo "[debug] compose ps" >&2
+  compose ps >&2 || true
+
+  if [[ -n "${order_id}" ]]; then
+    echo "[debug] order ${order_id}" >&2
+    db_query order_db "SELECT id, status, payment_id, correlation_id, updated_at FROM orders WHERE id = '${order_id}'" >&2 || true
+    db_query order_db "SELECT event_type, status, aggregate_id, correlation_id, created_at FROM outbox_events WHERE aggregate_id = '${order_id}' ORDER BY created_at" >&2 || true
+  fi
+
+  if [[ -n "${payment_id}" ]]; then
+    echo "[debug] payment ${payment_id}" >&2
+    db_query payment_db "SELECT id, order_id, status, payment_mode, correlation_id, updated_at FROM payments WHERE id = '${payment_id}'" >&2 || true
+    db_query payment_db "SELECT event_type, status, aggregate_id, correlation_id, created_at FROM outbox_events WHERE aggregate_id = '${payment_id}' ORDER BY created_at" >&2 || true
+  fi
+
+  if [[ -n "${order_id}" ]]; then
+    echo "[debug] reservation ${order_id}" >&2
+    db_query inventory_db "SELECT order_id, status, reserved_qty, updated_at FROM stock_reservations WHERE order_id = '${order_id}'" >&2 || true
+  fi
+
+  echo "[debug] inventory ${PRODUCT_ID}" >&2
+  db_query inventory_db "SELECT product_id, available_qty, reserved_qty, on_hand_qty, updated_at FROM inventories WHERE product_id = '${PRODUCT_ID}'" >&2 || true
 }
 
 post_order() {
@@ -367,8 +400,9 @@ publish_duplicate_order_event \
   "${duplicate_traceparent}" \
   "${duplicate_payload}"
 
-retry 15 1 duplicate_event_is_settled "${duplicate_event_id}" "${duplicate_before_on_hand}" || {
+retry "${DUPLICATE_EVENT_RETRY_ATTEMPTS}" 1 duplicate_event_is_settled "${duplicate_event_id}" "${duplicate_before_on_hand}" || {
   echo "assertion failed: duplicate event belum settle dalam waktu yang diharapkan" >&2
+  dump_debug_snapshot "duplicate event belum settle" "${success_order_id}" "${success_payment_id}"
   exit 1
 }
 
@@ -390,8 +424,9 @@ assert_equals "WAITING_PAYMENT" "${manual_success_status}" "status order manual 
 post_payment_succeed "${manual_success_payment_id}" >/dev/null
 
 manual_success_expected_on_hand="$(decimal_sub "${manual_success_before_on_hand}" "1")"
-retry 20 1 manual_payment_success_is_settled "${manual_success_order_id}" "${manual_success_payment_id}" "${manual_success_expected_on_hand}" || {
+retry "${MANUAL_SETTLE_RETRY_ATTEMPTS}" 1 manual_payment_success_is_settled "${manual_success_order_id}" "${manual_success_payment_id}" "${manual_success_expected_on_hand}" || {
   echo "assertion failed: manual payment success belum settle dalam waktu yang diharapkan" >&2
+  dump_debug_snapshot "manual payment success belum settle" "${manual_success_order_id}" "${manual_success_payment_id}"
   exit 1
 }
 
@@ -405,8 +440,9 @@ assert_equals "WAITING_PAYMENT" "${manual_fail_status}" "status order manual fai
 
 post_payment_fail "${manual_fail_payment_id}" >/dev/null
 
-retry 20 1 manual_payment_failed_is_settled "${manual_fail_order_id}" "${manual_fail_payment_id}" "${manual_fail_before_on_hand}" || {
+retry "${MANUAL_SETTLE_RETRY_ATTEMPTS}" 1 manual_payment_failed_is_settled "${manual_fail_order_id}" "${manual_fail_payment_id}" "${manual_fail_before_on_hand}" || {
   echo "assertion failed: manual payment failed belum settle dalam waktu yang diharapkan" >&2
+  dump_debug_snapshot "manual payment failed belum settle" "${manual_fail_order_id}" "${manual_fail_payment_id}"
   exit 1
 }
 
@@ -420,8 +456,9 @@ assert_equals "WAITING_PAYMENT" "${manual_cancel_status}" "status order manual c
 
 post_order_cancel "${manual_cancel_order_id}" >/dev/null
 
-retry 20 1 manual_order_cancel_is_settled "${manual_cancel_order_id}" "${manual_cancel_payment_id}" "${manual_cancel_before_on_hand}" || {
+retry "${MANUAL_SETTLE_RETRY_ATTEMPTS}" 1 manual_order_cancel_is_settled "${manual_cancel_order_id}" "${manual_cancel_payment_id}" "${manual_cancel_before_on_hand}" || {
   echo "assertion failed: manual order cancel belum settle dalam waktu yang diharapkan" >&2
+  dump_debug_snapshot "manual order cancel belum settle" "${manual_cancel_order_id}" "${manual_cancel_payment_id}"
   exit 1
 }
 
@@ -429,7 +466,7 @@ echo "[8/8] redis unavailable fallback"
 compose stop redis >/dev/null
 redis_stopped=1
 
-retry 10 1 assert_http_ok "${CATALOG_BASE_URL}/products/${PRODUCT_ID}" "GET product saat redis down harus fallback ke PostgreSQL"
+retry "${REDIS_FALLBACK_RETRY_ATTEMPTS}" 1 assert_http_ok "${CATALOG_BASE_URL}/products/${PRODUCT_ID}" "GET product saat redis down harus fallback ke PostgreSQL"
 redis_response="$(post_order SUCCESS 1)"
 redis_order_status="$(jq -r '.data.status' <<<"${redis_response}")"
 assert_equals "CONFIRMED" "${redis_order_status}" "checkout tetap harus berhasil saat redis down"

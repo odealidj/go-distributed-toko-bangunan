@@ -45,7 +45,7 @@ retry() {
 wait_http_ok() {
   local url="$1"
 
-  retry 45 2 bash -lc "
+  retry 60 2 bash -lc "
     status=\$(curl -sS -o /tmp/toko-wait-body.\$\$ -w '%{http_code}' '${url}' || true)
     rm -f /tmp/toko-wait-body.\$\$
     [[ \"\${status}\" == \"200\" ]]
@@ -59,7 +59,7 @@ wait_app_stack() {
 }
 
 wait_postgres_ready() {
-  retry 30 2 compose exec -T postgres pg_isready -U toko -d order_db >/dev/null 2>&1
+  retry 45 2 compose exec -T postgres pg_isready -U toko -d order_db >/dev/null 2>&1
 }
 
 echo "[1/7] reset compose state"

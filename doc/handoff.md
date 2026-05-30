@@ -224,6 +224,14 @@ Error/status terakhir saat handoff ini diperbarui:
   - perbaikan yang dibutuhkan:
     - `scripts/ci-integration.sh` kini menunggu PostgreSQL siap menerima koneksi dengan `pg_isready` sebelum migration;
     - ini menutup race saat startup yang sebelumnya memicu error `database system is shutting down`.
+- Status remote terbaru setelah commit `3e2f73f stabilkan ci compose`:
+  - GitHub Actions run `26683354945` pada branch `phase/13-business-completeness` gagal di job `integration-e2e`;
+  - detail publik yang bisa diambil tanpa login masih terbatas pada `Process completed with exit code 2`;
+  - artifact `ci-compose-logs` berhasil ter-upload, tetapi unduhan artifact GitHub membutuhkan autentikasi.
+- Mitigasi terbaru yang sedang diterapkan:
+  - `scripts/test-e2e.sh` kini memakai retry window yang lebih longgar untuk duplicate event, manual payment settle, dan Redis fallback;
+  - saat settle gagal, script sekarang membuang snapshot state order/payment/inventory dan `compose ps` ke stderr agar log CI lebih informatif;
+  - `scripts/ci-integration.sh` juga menambah window tunggu untuk `/readyz` dan `pg_isready`.
 - Catatan environment lokal terbaru:
   - konflik terbaru bukan lagi di Redis, tetapi di Jaeger host port `16686` karena stack lain aktif di mesin ini;
   - solusi yang sudah diterapkan: host port Compose kini bisa dioverride, misalnya `JAEGER_UI_PORT=16687`;
@@ -250,14 +258,11 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 
 Langkah paling masuk akal berikutnya:
 
-1. Commit dan push follow-up stabilisasi `scripts/ci-integration.sh`.
-2. Jalankan atau pantau GitHub Actions pada branch `phase/13-business-completeness`.
-3. Buat Pull Request dari branch phase terakhir ke `main`.
-4. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-5. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
-6. Ambil screenshot Jaeger trace untuk portfolio.
-7. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-8. Ambil screenshot GitHub Actions run terbaru yang hijau.
+1. Commit dan push follow-up hardening `scripts/test-e2e.sh` dan `scripts/ci-integration.sh`.
+2. Jalankan ulang `JAEGER_UI_PORT=16687 make ci-integration COMPOSE="docker compose"` secara lokal.
+3. Pantau GitHub Actions baru pada branch `phase/13-business-completeness`.
+4. Jika CI sudah hijau, lanjut ke review PR dan artefak portfolio.
+5. Jika CI masih merah, ambil log dengan akun GitHub terautentikasi atau unduh artifact `ci-compose-logs` untuk root cause yang lebih presisi.
 
 ## 7. Command yang Harus Dijalankan
 
