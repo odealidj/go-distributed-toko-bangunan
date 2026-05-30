@@ -31,18 +31,20 @@ Target utama:
 Branch aktif terakhir:
 
 ```text
-phase/12-portfolio-showcase
+phase/13-business-completeness
 ```
 
 Commit terakhir:
 
 ```text
-bac0c11 tambah panduan portfolio
+cek `git log -1 --oneline` pada branch aktif
 ```
 
 Commit sebelumnya yang relevan:
 
 ```text
+26bc376 lengkapi flow bisnis
+bac0c11 tambah panduan portfolio
 88715a4 rapikan handoff ci
 45e4571 stabilkan e2e kafka
 5ff6881 update handoff ci
@@ -65,6 +67,7 @@ phase/09-metrics-dashboard
 phase/10-kafka-dlq-retry
 phase/11-ci-integration
 phase/12-portfolio-showcase
+phase/13-business-completeness
 ```
 
 ## 3. File dan Area yang Sudah Diubah
@@ -104,6 +107,19 @@ doc/testing/performance-testing-k6.md
 doc/observability/tracing-and-idempotency.md
 doc/demo/demo-script.md
 doc/demo/portfolio-showcase.md
+```
+
+File yang terakhir berubah dan relevan untuk business completeness:
+
+```text
+services/order-service/internal/adapter/inbound/rest/orders.go
+services/order-service/internal/adapter/inbound/kafka/payment_events_consumer.go
+services/order-service/internal/adapter/outbound/postgres/order_repository.go
+services/payment-service/internal/adapter/inbound/rest/payments.go
+services/payment-service/internal/adapter/outbound/postgres/payment_repository_sqlx.go
+services/payment-service/internal/adapter/outbound/postgres/outbox_repository.go
+services/payment-service/internal/application/worker/outbox_publisher.go
+scripts/test-e2e.sh
 ```
 
 File yang terakhir berubah dan relevan untuk investigasi CI:
@@ -184,14 +200,17 @@ Error/status terakhir saat handoff ini diperbarui:
   - GitHub Actions run `26681209486` untuk commit `45e4571` berstatus `completed/success` pada `2026-05-30`.
   - Rangkaian kegagalan remote sebelumnya pada `26633670499` dan `26633113018` sudah tertutup.
 - Phase terbaru yang sedang dikerjakan:
-  - branch `phase/12-portfolio-showcase`;
-  - commit `bac0c11 tambah panduan portfolio`;
-  - README sekarang punya diagram arsitektur ringkas, highlight 5 menit, dan section tradeoff;
-  - dokumen baru `doc/demo/portfolio-showcase.md` menjelaskan screenshot, talking point, dan urutan demo untuk portfolio.
+  - branch `phase/13-business-completeness`;
+  - targetnya menutup gap `GET /orders`, `POST /orders/{id}/cancel`, manual payment resolution, dan `payment.events` consumer pada `order-service`.
+  - implementasi utama sudah masuk pada commit `26bc376 lengkapi flow bisnis`.
+- Validasi lokal untuk phase 13 yang sudah lolos:
+  - `bash -n scripts/test-e2e.sh`
+  - `GOCACHE=/tmp/go-build-cache make test-unit`
+  - `GOCACHE=/tmp/go-build-cache make build-all`
 - Catatan environment lokal terbaru:
-  - re-run `make ci-integration COMPOSE="docker compose"` sempat terblokir konflik host port `6379`;
+  - re-run full stack seperti `make ci-integration COMPOSE="docker compose"` atau `make test-e2e` sempat terblokir konflik host port `6379`;
   - pemicunya container lain di mesin ini: `flashsale-redis`;
-  - ini terlihat sebagai konflik environment lokal, bukan bukti regresi pada perubahan script.
+  - ini terlihat sebagai konflik environment lokal, bukan bukti regresi pada perubahan script atau code phase 13.
 
 Error penting yang pernah ditemukan dan sudah diperbaiki:
 
@@ -210,16 +229,14 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 
 Langkah paling masuk akal berikutnya:
 
-1. Buat Pull Request dari branch phase terakhir ke `main`.
-2. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-3. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
-4. Ambil screenshot Jaeger trace untuk portfolio.
-5. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-6. Ambil screenshot GitHub Actions run terbaru yang hijau.
-7. Jika ingin lanjut production-like:
-   - perluas dashboard Grafana;
-   - tambah GitHub Actions integration test dengan service container.
-   - tambah business metrics untuk outbox/inbox/DLQ.
+1. Push branch `phase/13-business-completeness`.
+2. Bebaskan host port `6379`, lalu jalankan ulang `make ci-integration COMPOSE="docker compose"` atau `make test-e2e`.
+3. Buat Pull Request dari branch phase terakhir ke `main`.
+4. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
+5. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
+6. Ambil screenshot Jaeger trace untuk portfolio.
+7. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+8. Ambil screenshot GitHub Actions run terbaru yang hijau.
 
 ## 7. Command yang Harus Dijalankan
 
