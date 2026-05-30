@@ -317,6 +317,7 @@ Script menjalankan lima skenario berurutan:
 5. Redis unavailable fallback.
 
 Sebelum skenario dijalankan, script menunggu `/readyz` dari `order-service`, `catalog-inventory-service`, dan `payment-service`.
+Untuk bagian async Kafka, script memakai polling berbatas waktu, bukan `sleep` statis, agar lebih stabil di CI runner yang lebih lambat.
 
 ## 9. Test Pyramid
 

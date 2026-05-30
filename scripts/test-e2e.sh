@@ -70,6 +70,23 @@ assert_http_ok() {
   rm -f /tmp/toko-http-body.$$
 }
 
+retry() {
+  local attempts="$1"
+  local sleep_seconds="$2"
+  shift 2
+
+  local attempt
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    if "$@"; then
+      return 0
+    fi
+    if [[ "${attempt}" -lt "${attempts}" ]]; then
+      sleep "${sleep_seconds}"
+    fi
+  done
+  return 1
+}
+
 decimal_sub() {
   local left="$1"
   local right="$2"
@@ -160,6 +177,23 @@ seed_inventory_demo() {
   compose exec -T postgres psql -U toko -d inventory_db < services/catalog-inventory-service/seeds/001_demo_products.sql >/dev/null
 }
 
+duplicate_event_is_settled() {
+  local duplicate_event_id="$1"
+  local duplicate_before_on_hand="$2"
+
+  local duplicate_after_on_hand
+  local inventory_inbox_count
+  local payment_inbox_count
+
+  duplicate_after_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+  inventory_inbox_count="$(db_query inventory_db "SELECT count(*) FROM inbox_events WHERE event_id = '${duplicate_event_id}'")"
+  payment_inbox_count="$(db_query payment_db "SELECT count(*) FROM inbox_events WHERE event_id = '${duplicate_event_id}'")"
+
+  [[ "$(decimal_trim "${duplicate_before_on_hand}")" == "$(decimal_trim "${duplicate_after_on_hand}")" ]] || return 1
+  [[ "${inventory_inbox_count}" == "1" ]] || return 1
+  [[ "${payment_inbox_count}" == "1" ]] || return 1
+}
+
 echo "[setup] seed inventory demo dan cek readiness"
 seed_inventory_demo
 assert_http_ok "${ORDER_BASE_URL}/readyz" "order-service harus ready"
@@ -222,7 +256,10 @@ publish_duplicate_order_event \
   "${duplicate_traceparent}" \
   "${duplicate_payload}"
 
-sleep 2
+retry 15 1 duplicate_event_is_settled "${duplicate_event_id}" "${duplicate_before_on_hand}" || {
+  echo "assertion failed: duplicate event belum settle dalam waktu yang diharapkan" >&2
+  exit 1
+}
 
 duplicate_after_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
 inventory_inbox_count="$(db_query inventory_db "SELECT count(*) FROM inbox_events WHERE event_id = '${duplicate_event_id}'")"
@@ -234,9 +271,8 @@ assert_equals "1" "${payment_inbox_count}" "payment inbox harus tetap satu event
 echo "[5/5] redis unavailable fallback"
 compose stop redis >/dev/null
 redis_stopped=1
-sleep 1
 
-assert_http_ok "${CATALOG_BASE_URL}/products/${PRODUCT_ID}" "GET product saat redis down harus fallback ke PostgreSQL"
+retry 10 1 assert_http_ok "${CATALOG_BASE_URL}/products/${PRODUCT_ID}" "GET product saat redis down harus fallback ke PostgreSQL"
 redis_response="$(post_order SUCCESS 1)"
 redis_order_status="$(jq -r '.data.status' <<<"${redis_response}")"
 assert_equals "CONFIRMED" "${redis_order_status}" "checkout tetap harus berhasil saat redis down"

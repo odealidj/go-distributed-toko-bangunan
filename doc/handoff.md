@@ -166,6 +166,14 @@ Error/status terakhir saat handoff ini diperbarui:
   - Job yang gagal tetap `integration-e2e`.
   - Check annotation yang terlihat publik masih generik: `Process completed with exit code 2.`
   - Artinya masalah remote belum terisolasi penuh walau jalur lokal sudah stabil.
+- Mitigasi terbaru yang belum diverifikasi di GitHub:
+  - `scripts/test-e2e.sh` tidak lagi memakai `sleep 2` untuk duplicate event Kafka.
+  - Validasi duplicate event sekarang memakai polling bounded sampai inbox inventory/payment settle.
+  - Fallback Redis pada E2E juga dipanggil lewat retry bounded.
+- Catatan environment lokal terbaru:
+  - re-run `make ci-integration COMPOSE="docker compose"` sempat terblokir konflik host port `6379`;
+  - pemicunya container lain di mesin ini: `flashsale-redis`;
+  - ini terlihat sebagai konflik environment lokal, bukan bukti regresi pada perubahan script.
 
 Error penting yang pernah ditemukan dan sudah diperbaiki:
 
@@ -186,13 +194,14 @@ Langkah paling masuk akal berikutnya:
 
 1. Buat Pull Request dari branch phase terakhir ke `main`.
 2. Investigasi detail kegagalan remote `integration-e2e` untuk run `26633670499`.
-3. Ambil compose log/artifact dari GitHub Actions atau tambah logging lebih kaya pada workflow agar root cause terlihat.
-4. Setelah CI hijau, buat Pull Request ke `main`.
-5. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-6. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
-7. Ambil screenshot Jaeger trace untuk portfolio.
-8. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-9. Jika ingin lanjut production-like:
+3. Push mitigasi polling async Kafka di `scripts/test-e2e.sh`, lalu cek apakah run GitHub terbaru membaik.
+4. Jika masih gagal, ambil compose log/artifact dari GitHub Actions atau tambah logging lebih kaya pada workflow agar root cause terlihat.
+5. Setelah CI hijau, buat Pull Request ke `main`.
+6. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
+7. Jalankan demo manual sesuai `doc/demo/demo-script.md`.
+8. Ambil screenshot Jaeger trace untuk portfolio.
+9. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+10. Jika ingin lanjut production-like:
    - perluas dashboard Grafana;
    - tambah GitHub Actions integration test dengan service container.
    - tambah business metrics untuk outbox/inbox/DLQ.
