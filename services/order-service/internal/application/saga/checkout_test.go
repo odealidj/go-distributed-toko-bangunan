@@ -7,6 +7,7 @@ import (
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/application/saga"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 )
 
 func TestCreateCheckoutSuccessConfirmsOrderAndCommitsStock(t *testing.T) {
@@ -109,6 +110,22 @@ func (r *fakeRepository) GetOrder(_ context.Context, orderID string) (model.Orde
 		return model.Order{}, model.ErrOrderNotFound
 	}
 	return r.order, nil
+}
+
+func (r *fakeRepository) ListOrders(context.Context, model.OrderFilter) ([]model.Order, int, error) {
+	return []model.Order{r.order}, 1, nil
+}
+
+func (r *fakeRepository) CancelOrder(_ context.Context, command model.CancelOrderCommand) (model.Order, error) {
+	if r.order.ID != command.OrderID {
+		return model.Order{}, model.ErrOrderNotFound
+	}
+	r.order.Status = model.OrderStatusCancelled
+	return r.order, nil
+}
+
+func (r *fakeRepository) ProcessPaymentEvent(context.Context, messaging.EventEnvelope) (bool, error) {
+	return false, nil
 }
 
 func (r *fakeRepository) RecordTransition(_ context.Context, transition model.SagaTransition) error {

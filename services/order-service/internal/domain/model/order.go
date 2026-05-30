@@ -26,6 +26,7 @@ const (
 	SagaStepCreatePayment    = "create_payment"
 	SagaStepCommitStock      = "commit_stock"
 	SagaStepReleaseStock     = "release_stock"
+	SagaStepCancelOrder      = "cancel_order"
 )
 
 const (
@@ -96,6 +97,19 @@ type CreateCheckoutCommand struct {
 	CorrelationID   string
 	CausationID     string
 	Items           []OrderItemInput
+}
+
+type CancelOrderCommand struct {
+	OrderID       string
+	CorrelationID string
+	CausationID   string
+	Reason        string
+}
+
+type OrderFilter struct {
+	Status  string
+	Page    int
+	PerPage int
 }
 
 type Payment struct {

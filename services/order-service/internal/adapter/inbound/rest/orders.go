@@ -3,6 +3,7 @@ package rest
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
@@ -38,6 +39,17 @@ type orderResponse struct {
 	CorrelationID string              `json:"correlation_id"`
 	CreatedAt     string              `json:"created_at,omitempty"`
 	UpdatedAt     string              `json:"updated_at,omitempty"`
+}
+
+type orderListItemResponse struct {
+	ID            string           `json:"id"`
+	Status        string           `json:"status"`
+	Customer      customerResponse `json:"customer"`
+	TotalAmount   int64            `json:"total_amount"`
+	PaymentID     string           `json:"payment_id,omitempty"`
+	CorrelationID string           `json:"correlation_id"`
+	CreatedAt     string           `json:"created_at,omitempty"`
+	UpdatedAt     string           `json:"updated_at,omitempty"`
 }
 
 type customerResponse struct {
@@ -105,6 +117,53 @@ func getOrderHandler(order *usecase.OrderUseCase) khttp.HandlerFunc {
 	}
 }
 
+func listOrdersHandler(order *usecase.OrderUseCase) khttp.HandlerFunc {
+	return func(ctx khttp.Context) error {
+		page := parsePositiveInt(ctx.Query().Get("page"), 1)
+		perPage := parsePositiveInt(ctx.Query().Get("per_page"), 10)
+		status := ctx.Query().Get("status")
+
+		orders, total, err := order.ListOrders(ctx, model.OrderFilter{
+			Status:  status,
+			Page:    page,
+			PerPage: perPage,
+		})
+		if err != nil {
+			return response.JSONError(ctx, http.StatusInternalServerError, "ORDER_LIST_FAILED", "Gagal mengambil daftar order.")
+		}
+
+		items := make([]orderListItemResponse, 0, len(orders))
+		for _, item := range orders {
+			items = append(items, newOrderListItemResponse(item))
+		}
+		return response.JSONPage(ctx, http.StatusOK, items, response.NewPagination(page, perPage, total))
+	}
+}
+
+func cancelOrderHandler(order *usecase.OrderUseCase) khttp.HandlerFunc {
+	return func(ctx khttp.Context) error {
+		result, err := order.CancelOrder(ctx, model.CancelOrderCommand{
+			OrderID:       ctx.Vars().Get("id"),
+			CorrelationID: correlationID(ctx),
+			CausationID:   requestID(ctx),
+			Reason:        "cancel_requested",
+		})
+		if errors.Is(err, model.ErrInvalidInput) {
+			return response.JSONError(ctx, http.StatusBadRequest, "INVALID_ORDER_ID", "ID order tidak valid.")
+		}
+		if errors.Is(err, model.ErrOrderNotFound) {
+			return response.JSONError(ctx, http.StatusNotFound, "ORDER_NOT_FOUND", "Order tidak ditemukan.")
+		}
+		if errors.Is(err, model.ErrOrderConflict) {
+			return response.JSONError(ctx, http.StatusConflict, "ORDER_CANNOT_BE_CANCELLED", "Order tidak bisa dibatalkan dari status saat ini.")
+		}
+		if err != nil {
+			return response.JSONError(ctx, http.StatusInternalServerError, "ORDER_CANCEL_FAILED", "Gagal membatalkan order.")
+		}
+		return response.JSON(ctx, http.StatusOK, newOrderResponse(result))
+	}
+}
+
 func orderItemInputs(items []createOrderItemRequest) []model.OrderItemInput {
 	result := make([]model.OrderItemInput, 0, len(items))
 	for _, item := range items {
@@ -151,6 +210,31 @@ func formatTime(value time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339)
+}
+
+func parsePositiveInt(raw string, fallback int) int {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return value
+}
+
+func newOrderListItemResponse(order model.Order) orderListItemResponse {
+	return orderListItemResponse{
+		ID:     order.ID,
+		Status: order.Status,
+		Customer: customerResponse{
+			Name:    order.CustomerName,
+			Phone:   order.CustomerPhone,
+			Address: order.CustomerAddress,
+		},
+		TotalAmount:   order.TotalAmount,
+		PaymentID:     order.PaymentID,
+		CorrelationID: order.CorrelationID,
+		CreatedAt:     formatTime(order.CreatedAt),
+		UpdatedAt:     formatTime(order.UpdatedAt),
+	}
 }
 
 func correlationID(ctx khttp.Context) string {

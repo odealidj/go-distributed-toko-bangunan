@@ -12,6 +12,19 @@ SELECT id, customer_name, customer_phone, customer_address, status, total_amount
 FROM orders
 WHERE id = $1;
 
+-- name: ListOrders :many
+SELECT id, customer_name, customer_phone, customer_address, status, total_amount, payment_id, correlation_id
+       , created_at, updated_at
+FROM orders
+WHERE ($1::text = '' OR status = $1)
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountOrders :one
+SELECT count(*)
+FROM orders
+WHERE ($1::text = '' OR status = $1);
+
 -- name: ListOrderItems :many
 SELECT id, order_id, product_id, product_name, unit, quantity, unit_price, line_total
 FROM order_items
@@ -31,6 +44,11 @@ WHERE id = $1;
 -- name: CreateSagaInstance :exec
 INSERT INTO saga_instances (id, order_id, status, current_step, correlation_id)
 VALUES ($1, $2, $3, $4, $5);
+
+-- name: GetSagaInstanceByOrderID :one
+SELECT id, order_id, status, current_step, correlation_id, completed_at
+FROM saga_instances
+WHERE order_id = $1;
 
 -- name: UpdateSagaInstance :exec
 UPDATE saga_instances

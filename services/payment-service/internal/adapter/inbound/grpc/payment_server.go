@@ -26,6 +26,8 @@ func (s *PaymentServer) CreatePayment(ctx context.Context, req *paymentv1.Create
 		Amount:         req.GetAmount(),
 		PaymentMode:    modeFromProto(req.GetPaymentMode()),
 		IdempotencyKey: req.GetMetadata().GetIdempotencyKey(),
+		CorrelationID:  req.GetMetadata().GetCorrelationId(),
+		CausationID:    req.GetMetadata().GetCausationId(),
 	})
 	if errors.Is(err, model.ErrInvalidInput) {
 		return nil, status.Error(codes.InvalidArgument, "order_id, amount, payment_mode, dan idempotency_key wajib diisi")
@@ -60,9 +62,11 @@ func (s *PaymentServer) GetPaymentStatus(ctx context.Context, req *paymentv1.Get
 
 func (s *PaymentServer) CancelPayment(ctx context.Context, req *paymentv1.CancelPaymentRequest) (*paymentv1.CancelPaymentResponse, error) {
 	payment, err := s.payment.CancelPayment(ctx, model.CancelPaymentCommand{
-		PaymentID: req.GetPaymentId(),
-		OrderID:   req.GetOrderId(),
-		Reason:    req.GetReason(),
+		PaymentID:     req.GetPaymentId(),
+		OrderID:       req.GetOrderId(),
+		Reason:        req.GetReason(),
+		CorrelationID: req.GetMetadata().GetCorrelationId(),
+		CausationID:   req.GetMetadata().GetCausationId(),
 	})
 	if errors.Is(err, model.ErrInvalidInput) {
 		return nil, status.Error(codes.InvalidArgument, "payment_id atau order_id wajib diisi")

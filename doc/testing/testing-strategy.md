@@ -308,13 +308,16 @@ Script otomatis untuk scenario E2E phase ini:
 scripts/test-e2e.sh
 ```
 
-Script menjalankan lima skenario berurutan:
+Script menjalankan delapan skenario berurutan:
 
 1. checkout success;
 2. insufficient stock;
 3. payment failed compensation;
 4. duplicate `OrderConfirmed` event;
-5. Redis unavailable fallback.
+5. manual payment success;
+6. manual payment failed;
+7. manual order cancel;
+8. Redis unavailable fallback.
 
 Sebelum skenario dijalankan, script menunggu `/readyz` dari `order-service`, `catalog-inventory-service`, dan `payment-service`.
 Untuk bagian async Kafka, script memakai polling berbatas waktu, bukan `sleep` statis, agar lebih stabil di CI runner yang lebih lambat.

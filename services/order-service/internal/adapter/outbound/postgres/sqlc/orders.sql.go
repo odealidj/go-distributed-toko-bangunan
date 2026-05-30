@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOrders = `-- name: CountOrders :one
+SELECT count(*)
+FROM orders
+WHERE ($1::text = '' OR status = $1)
+`
+
+func (q *Queries) CountOrders(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrders, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createOrder = `-- name: CreateOrder :exec
 INSERT INTO orders (id, customer_name, customer_phone, customer_address, status, total_amount, payment_id, correlation_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -178,6 +191,35 @@ func (q *Queries) GetOrder(ctx context.Context, id string) (Order, error) {
 	return i, err
 }
 
+const getSagaInstanceByOrderID = `-- name: GetSagaInstanceByOrderID :one
+SELECT id, order_id, status, current_step, correlation_id, completed_at
+FROM saga_instances
+WHERE order_id = $1
+`
+
+type GetSagaInstanceByOrderIDRow struct {
+	ID            string
+	OrderID       string
+	Status        string
+	CurrentStep   string
+	CorrelationID string
+	CompletedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) GetSagaInstanceByOrderID(ctx context.Context, orderID string) (GetSagaInstanceByOrderIDRow, error) {
+	row := q.db.QueryRow(ctx, getSagaInstanceByOrderID, orderID)
+	var i GetSagaInstanceByOrderIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.Status,
+		&i.CurrentStep,
+		&i.CorrelationID,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const listOrderItems = `-- name: ListOrderItems :many
 SELECT id, order_id, product_id, product_name, unit, quantity, unit_price, line_total
 FROM order_items
@@ -203,6 +245,52 @@ func (q *Queries) ListOrderItems(ctx context.Context, orderID string) ([]OrderIt
 			&i.Quantity,
 			&i.UnitPrice,
 			&i.LineTotal,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrders = `-- name: ListOrders :many
+SELECT id, customer_name, customer_phone, customer_address, status, total_amount, payment_id, correlation_id
+       , created_at, updated_at
+FROM orders
+WHERE ($1::text = '' OR status = $1)
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListOrdersParams struct {
+	Column1 string
+	Limit   int32
+	Offset  int32
+}
+
+func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error) {
+	rows, err := q.db.Query(ctx, listOrders, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerName,
+			&i.CustomerPhone,
+			&i.CustomerAddress,
+			&i.Status,
+			&i.TotalAmount,
+			&i.PaymentID,
+			&i.CorrelationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

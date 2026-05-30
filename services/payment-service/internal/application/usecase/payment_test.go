@@ -62,6 +62,14 @@ func (r *fakeRepository) CancelPayment(context.Context, model.CancelPaymentComma
 	return model.Payment{}, nil
 }
 
+func (r *fakeRepository) SucceedPayment(context.Context, model.CompletePaymentCommand) (model.Payment, error) {
+	return model.Payment{}, nil
+}
+
+func (r *fakeRepository) FailPayment(context.Context, model.CompletePaymentCommand) (model.Payment, error) {
+	return model.Payment{}, nil
+}
+
 func (r *fakeRepository) ProcessOrderEvent(context.Context, messaging.EventEnvelope) (bool, error) {
 	return false, nil
 }

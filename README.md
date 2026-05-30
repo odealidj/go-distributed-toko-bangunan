@@ -68,7 +68,7 @@ Project ini sengaja didesain untuk menunjukkan hal yang biasanya dicari saat int
 - Kafka consumer retry dengan exponential backoff dan DLQ;
 - idempotency untuk HTTP command, gRPC command, dan Kafka consumer;
 - distributed tracing lintas REST, gRPC, Kafka, PostgreSQL, dan Redis;
-- command-line demo untuk success, failure, duplicate event, dan Redis down;
+- command-line demo untuk success, failure, manual payment resolution, order cancel, duplicate event, dan Redis down;
 - K6 smoke/load scenario untuk endpoint utama;
 - dokumentasi teknis dan ADR yang bisa dibaca manusia maupun AI.
 
@@ -78,9 +78,10 @@ Jika reviewer hanya memberi waktu singkat, bagian yang paling kuat untuk ditunju
 
 1. `POST /orders` menjalankan Saga orchestration lintas 3 service.
 2. Payment failure memicu compensation dan stock kembali seperti semula.
-3. Duplicate Kafka event tidak menggandakan efek bisnis karena inbox/idempotency.
-4. Jaeger memperlihatkan trace lintas REST, gRPC, Kafka, PostgreSQL, dan Redis.
-5. GitHub Actions menjalankan container stack nyata, bukan hanya unit test.
+3. Manual payment bisa diselesaikan lewat endpoint demo dan order bergerak lewat `payment.events`.
+4. Duplicate Kafka event tidak menggandakan efek bisnis karena inbox/idempotency.
+5. Jaeger memperlihatkan trace lintas REST, gRPC, Kafka, PostgreSQL, dan Redis.
+6. GitHub Actions menjalankan container stack nyata, bukan hanya unit test.
 
 ## Quick Start
 

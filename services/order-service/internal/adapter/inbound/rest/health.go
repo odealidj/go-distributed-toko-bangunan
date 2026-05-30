@@ -14,7 +14,9 @@ func RegisterRoutes(server *khttp.Server, cfg config.ServiceConfig, order *useca
 	router.GET("/healthz", healthHandler(cfg))
 	router.GET("/readyz", readyHandler(cfg, order))
 	router.POST("/orders", createOrderHandler(order))
+	router.GET("/orders", listOrdersHandler(order))
 	router.GET("/orders/{id}", getOrderHandler(order))
+	router.POST("/orders/{id}/cancel", cancelOrderHandler(order))
 }
 
 func healthHandler(cfg config.ServiceConfig) khttp.HandlerFunc {

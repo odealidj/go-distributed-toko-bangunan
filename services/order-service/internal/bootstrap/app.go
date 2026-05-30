@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	inventoryv1 "github.com/odealidj/go-distributed-toko-bangunan/proto/inventory/v1"
 	paymentv1 "github.com/odealidj/go-distributed-toko-bangunan/proto/payment/v1"
+	orderkafka "github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/adapter/inbound/kafka"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/adapter/inbound/rest"
 	outboundgrpc "github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/adapter/outbound/grpc"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/adapter/outbound/postgres"
@@ -61,8 +62,16 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 	paymentClient := outboundgrpc.NewPaymentClient(paymentv1.NewPaymentServiceClient(paymentConn))
 	checkout := saga.NewCheckoutOrchestrator(repository, inventoryClient, paymentClient)
 	order := usecase.NewOrder(checkout)
+	paymentEventsConsumer, err := orderkafka.NewPaymentEventsConsumer(cfg, order)
+	if err != nil {
+		_ = paymentConn.Close()
+		_ = inventoryConn.Close()
+		pool.Close()
+		return nil, nil, err
+	}
 	producer, err := messaging.NewKgoProducer(cfg.KafkaBrokers)
 	if err != nil {
+		paymentEventsConsumer.Close()
 		_ = paymentConn.Close()
 		_ = inventoryConn.Close()
 		pool.Close()
@@ -88,17 +97,24 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 		kratos.Server(httpServer),
 		kratos.Logger(log.DefaultLogger),
 		kratos.AfterStart(func(context.Context) error {
+			go func() {
+				if err := paymentEventsConsumer.Run(workerCtx); err != nil {
+					log.Errorf("payment events consumer berhenti: %v", err)
+				}
+			}()
 			go outboxPublisher.Run(workerCtx)
 			return nil
 		}),
 		kratos.BeforeStop(func(context.Context) error {
 			stopWorker()
+			paymentEventsConsumer.Close()
 			producer.Close()
 			return nil
 		}),
 	)
 	cleanup := func() {
 		stopWorker()
+		paymentEventsConsumer.Close()
 		producer.Close()
 		_ = paymentConn.Close()
 		_ = inventoryConn.Close()

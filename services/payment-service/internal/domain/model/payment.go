@@ -34,10 +34,35 @@ type CreatePaymentCommand struct {
 	Amount         int64
 	PaymentMode    string
 	IdempotencyKey string
+	CorrelationID  string
+	CausationID    string
 }
 
 type CancelPaymentCommand struct {
-	PaymentID string
-	OrderID   string
-	Reason    string
+	PaymentID     string
+	OrderID       string
+	Reason        string
+	CorrelationID string
+	CausationID   string
 }
+
+type CompletePaymentCommand struct {
+	PaymentID     string
+	Reason        string
+	CorrelationID string
+	CausationID   string
+}
+
+type OutboxEvent struct {
+	ID            string
+	AggregateID   string
+	AggregateType string
+	EventType     string
+	CorrelationID string
+	CausationID   string
+	Traceparent   string
+	Payload       []byte
+	Status        string
+}
+
+const OutboxStatusPending = "PENDING"

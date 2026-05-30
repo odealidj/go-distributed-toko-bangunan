@@ -18,8 +18,10 @@ import (
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/adapter/inbound/rest"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/adapter/outbound/postgres"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/usecase"
+	"github.com/odealidj/go-distributed-toko-bangunan/services/payment-service/internal/application/worker"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/httpx"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/metrics"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
@@ -39,12 +41,20 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 	}
 
 	repository := postgres.NewPaymentRepository(db)
+	outboxRepository := postgres.NewPaymentOutboxRepository(db)
 	payment := usecase.NewPayment(repository)
 	orderEventsConsumer, err := paymentkafka.NewOrderEventsConsumer(cfg, payment)
 	if err != nil {
 		_ = db.Close()
 		return nil, nil, err
 	}
+	producer, err := messaging.NewKgoProducer(cfg.KafkaBrokers)
+	if err != nil {
+		orderEventsConsumer.Close()
+		_ = db.Close()
+		return nil, nil, err
+	}
+	outboxPublisher := worker.NewOutboxPublisher(outboxRepository, producer)
 	consumerCtx, stopConsumer := context.WithCancel(context.Background())
 
 	httpServer := khttp.NewServer(
@@ -79,17 +89,20 @@ func NewApp(cfg config.ServiceConfig) (*kratos.App, func(), error) {
 					log.Errorf("order events consumer berhenti: %v", err)
 				}
 			}()
+			go outboxPublisher.Run(consumerCtx)
 			return nil
 		}),
 		kratos.BeforeStop(func(context.Context) error {
 			stopConsumer()
 			orderEventsConsumer.Close()
+			producer.Close()
 			return nil
 		}),
 	)
 	cleanup := func() {
 		stopConsumer()
 		orderEventsConsumer.Close()
+		producer.Close()
 		_ = db.Close()
 	}
 	return app, cleanup, nil

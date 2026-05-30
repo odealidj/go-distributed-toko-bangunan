@@ -24,6 +24,8 @@ func (u *PaymentUseCase) Ping(ctx context.Context) error {
 func (u *PaymentUseCase) CreatePayment(ctx context.Context, command model.CreatePaymentCommand) (model.Payment, error) {
 	command.OrderID = strings.TrimSpace(command.OrderID)
 	command.IdempotencyKey = strings.TrimSpace(command.IdempotencyKey)
+	command.CorrelationID = strings.TrimSpace(command.CorrelationID)
+	command.CausationID = strings.TrimSpace(command.CausationID)
 	command.PaymentMode = normalizePaymentMode(command.PaymentMode)
 	if command.OrderID == "" || command.IdempotencyKey == "" || command.Amount <= 0 || command.PaymentMode == "" {
 		return model.Payment{}, model.ErrInvalidInput
@@ -43,10 +45,34 @@ func (u *PaymentUseCase) CancelPayment(ctx context.Context, command model.Cancel
 	command.PaymentID = strings.TrimSpace(command.PaymentID)
 	command.OrderID = strings.TrimSpace(command.OrderID)
 	command.Reason = strings.TrimSpace(command.Reason)
+	command.CorrelationID = strings.TrimSpace(command.CorrelationID)
+	command.CausationID = strings.TrimSpace(command.CausationID)
 	if command.PaymentID == "" && command.OrderID == "" {
 		return model.Payment{}, model.ErrInvalidInput
 	}
 	return u.repository.CancelPayment(ctx, command)
+}
+
+func (u *PaymentUseCase) SucceedPayment(ctx context.Context, command model.CompletePaymentCommand) (model.Payment, error) {
+	command.PaymentID = strings.TrimSpace(command.PaymentID)
+	command.Reason = strings.TrimSpace(command.Reason)
+	command.CorrelationID = strings.TrimSpace(command.CorrelationID)
+	command.CausationID = strings.TrimSpace(command.CausationID)
+	if command.PaymentID == "" {
+		return model.Payment{}, model.ErrInvalidInput
+	}
+	return u.repository.SucceedPayment(ctx, command)
+}
+
+func (u *PaymentUseCase) FailPayment(ctx context.Context, command model.CompletePaymentCommand) (model.Payment, error) {
+	command.PaymentID = strings.TrimSpace(command.PaymentID)
+	command.Reason = strings.TrimSpace(command.Reason)
+	command.CorrelationID = strings.TrimSpace(command.CorrelationID)
+	command.CausationID = strings.TrimSpace(command.CausationID)
+	if command.PaymentID == "" {
+		return model.Payment{}, model.ErrInvalidInput
+	}
+	return u.repository.FailPayment(ctx, command)
 }
 
 func (u *PaymentUseCase) ProcessOrderEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {

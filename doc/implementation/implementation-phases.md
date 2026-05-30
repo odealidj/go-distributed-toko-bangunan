@@ -558,6 +558,7 @@ Urutan kerja yang direkomendasikan:
 10. `phase/10-kafka-dlq-retry`
 11. `phase/11-ci-integration`
 12. `phase/12-portfolio-showcase`
+13. `phase/13-business-completeness`
 
 Alasan:
 
@@ -565,3 +566,38 @@ Alasan:
 - inventory dan payment dibuat sebelum order Saga karena Saga membutuhkan downstream;
 - outbox/inbox dan Kafka dipasang setelah local transaction behavior jelas;
 - observability dan testing diperkuat setelah flow utama benar.
+
+## 18. Phase 13 - Business Completeness
+
+Branch:
+
+```text
+phase/13-business-completeness
+```
+
+Tujuan:
+
+Menutup gap fungsi bisnis utama agar flow order, manual payment, order cancel, dan event async penting benar-benar bisa dijalankan end-to-end.
+
+Cakupan:
+
+- `GET /orders`;
+- `POST /orders/{id}/cancel`;
+- demo endpoint payment succeed/fail;
+- payment outbox publisher;
+- order consumer untuk `payment.events`;
+- penguatan E2E scenario untuk manual payment dan cancel order.
+
+Rujukan:
+
+- `doc/specs/services.yaml`
+- `doc/specs/state-machines.yaml`
+- `doc/events/event-contracts.md`
+- `doc/demo/demo-script.md`
+
+Acceptance criteria:
+
+- order list dan cancel berjalan;
+- manual payment bisa diselesaikan ke success/failure lewat endpoint demo;
+- `order-service` melanjutkan state order dari `payment.events`;
+- E2E mencakup manual payment success/failure dan cancel order.

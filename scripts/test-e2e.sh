@@ -87,6 +87,14 @@ retry() {
   return 1
 }
 
+retry_silent() {
+  local attempts="$1"
+  local sleep_seconds="$2"
+  shift 2
+
+  retry "${attempts}" "${sleep_seconds}" "$@" >/dev/null 2>&1
+}
+
 decimal_sub() {
   local left="$1"
   local right="$2"
@@ -126,6 +134,46 @@ post_order() {
     -H "X-Correlation-Id: ${correlation_id}" \
     -d "${payload}" \
     "${ORDER_BASE_URL}/orders"
+}
+
+post_order_response() {
+  post_order "$1" "$2"
+}
+
+post_order_cancel() {
+  local order_id="$1"
+  local correlation_id="corr_cancel_$(date +%s%N)"
+  local request_id="req_cancel_$(date +%s%N)"
+
+  curl -fsS \
+    -X POST \
+    -H "X-Request-Id: ${request_id}" \
+    -H "X-Correlation-Id: ${correlation_id}" \
+    "${ORDER_BASE_URL}/orders/${order_id}/cancel"
+}
+
+post_payment_succeed() {
+  local payment_id="$1"
+  local correlation_id="corr_pay_succeed_$(date +%s%N)"
+  local request_id="req_pay_succeed_$(date +%s%N)"
+
+  curl -fsS \
+    -X POST \
+    -H "X-Request-Id: ${request_id}" \
+    -H "X-Correlation-Id: ${correlation_id}" \
+    "${PAYMENT_BASE_URL}/demo/payments/${payment_id}/succeed"
+}
+
+post_payment_fail() {
+  local payment_id="$1"
+  local correlation_id="corr_pay_fail_$(date +%s%N)"
+  local request_id="req_pay_fail_$(date +%s%N)"
+
+  curl -fsS \
+    -X POST \
+    -H "X-Request-Id: ${request_id}" \
+    -H "X-Correlation-Id: ${correlation_id}" \
+    "${PAYMENT_BASE_URL}/demo/payments/${payment_id}/fail"
 }
 
 publish_duplicate_order_event() {
@@ -192,6 +240,69 @@ duplicate_event_is_settled() {
   [[ "$(decimal_trim "${duplicate_before_on_hand}")" == "$(decimal_trim "${duplicate_after_on_hand}")" ]] || return 1
   [[ "${inventory_inbox_count}" == "1" ]] || return 1
   [[ "${payment_inbox_count}" == "1" ]] || return 1
+}
+
+manual_payment_success_is_settled() {
+  local order_id="$1"
+  local payment_id="$2"
+  local expected_on_hand="$3"
+
+  local order_status
+  local payment_status
+  local reservation_status
+  local on_hand
+
+  order_status="$(db_query order_db "SELECT status FROM orders WHERE id = '${order_id}'")"
+  payment_status="$(db_query payment_db "SELECT status FROM payments WHERE id = '${payment_id}'")"
+  reservation_status="$(db_query inventory_db "SELECT status FROM stock_reservations WHERE order_id = '${order_id}'")"
+  on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+
+  [[ "${order_status}" == "CONFIRMED" ]] || return 1
+  [[ "${payment_status}" == "SUCCEEDED" ]] || return 1
+  [[ "${reservation_status}" == "COMMITTED" ]] || return 1
+  [[ "$(decimal_trim "${expected_on_hand}")" == "$(decimal_trim "${on_hand}")" ]] || return 1
+}
+
+manual_payment_failed_is_settled() {
+  local order_id="$1"
+  local payment_id="$2"
+  local expected_on_hand="$3"
+
+  local order_status
+  local payment_status
+  local reservation_status
+  local on_hand
+
+  order_status="$(db_query order_db "SELECT status FROM orders WHERE id = '${order_id}'")"
+  payment_status="$(db_query payment_db "SELECT status FROM payments WHERE id = '${payment_id}'")"
+  reservation_status="$(db_query inventory_db "SELECT status FROM stock_reservations WHERE order_id = '${order_id}'")"
+  on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+
+  [[ "${order_status}" == "CANCELLED" ]] || return 1
+  [[ "${payment_status}" == "FAILED" ]] || return 1
+  [[ "${reservation_status}" == "RELEASED" ]] || return 1
+  [[ "$(decimal_trim "${expected_on_hand}")" == "$(decimal_trim "${on_hand}")" ]] || return 1
+}
+
+manual_order_cancel_is_settled() {
+  local order_id="$1"
+  local payment_id="$2"
+  local expected_on_hand="$3"
+
+  local order_status
+  local payment_status
+  local reservation_status
+  local on_hand
+
+  order_status="$(db_query order_db "SELECT status FROM orders WHERE id = '${order_id}'")"
+  payment_status="$(db_query payment_db "SELECT status FROM payments WHERE id = '${payment_id}'")"
+  reservation_status="$(db_query inventory_db "SELECT status FROM stock_reservations WHERE order_id = '${order_id}'")"
+  on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+
+  [[ "${order_status}" == "CANCELLED" ]] || return 1
+  [[ "${payment_status}" == "CANCELLED" ]] || return 1
+  [[ "${reservation_status}" == "RELEASED" ]] || return 1
+  [[ "$(decimal_trim "${expected_on_hand}")" == "$(decimal_trim "${on_hand}")" ]] || return 1
 }
 
 echo "[setup] seed inventory demo dan cek readiness"
@@ -268,7 +379,53 @@ assert_equals "$(decimal_trim "${duplicate_before_on_hand}")" "$(decimal_trim "$
 assert_equals "1" "${inventory_inbox_count}" "inventory inbox harus tetap satu event"
 assert_equals "1" "${payment_inbox_count}" "payment inbox harus tetap satu event"
 
-echo "[5/5] redis unavailable fallback"
+echo "[5/8] manual payment success"
+manual_success_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+manual_success_response="$(post_order_response MANUAL 1)"
+manual_success_order_id="$(jq -r '.data.id' <<<"${manual_success_response}")"
+manual_success_status="$(jq -r '.data.status' <<<"${manual_success_response}")"
+manual_success_payment_id="$(jq -r '.data.payment_id' <<<"${manual_success_response}")"
+assert_equals "WAITING_PAYMENT" "${manual_success_status}" "status order manual success harus waiting payment"
+
+post_payment_succeed "${manual_success_payment_id}" >/dev/null
+
+manual_success_expected_on_hand="$(decimal_sub "${manual_success_before_on_hand}" "1")"
+retry 20 1 manual_payment_success_is_settled "${manual_success_order_id}" "${manual_success_payment_id}" "${manual_success_expected_on_hand}" || {
+  echo "assertion failed: manual payment success belum settle dalam waktu yang diharapkan" >&2
+  exit 1
+}
+
+echo "[6/8] manual payment failed"
+manual_fail_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+manual_fail_response="$(post_order_response MANUAL 1)"
+manual_fail_order_id="$(jq -r '.data.id' <<<"${manual_fail_response}")"
+manual_fail_status="$(jq -r '.data.status' <<<"${manual_fail_response}")"
+manual_fail_payment_id="$(jq -r '.data.payment_id' <<<"${manual_fail_response}")"
+assert_equals "WAITING_PAYMENT" "${manual_fail_status}" "status order manual failure harus waiting payment"
+
+post_payment_fail "${manual_fail_payment_id}" >/dev/null
+
+retry 20 1 manual_payment_failed_is_settled "${manual_fail_order_id}" "${manual_fail_payment_id}" "${manual_fail_before_on_hand}" || {
+  echo "assertion failed: manual payment failed belum settle dalam waktu yang diharapkan" >&2
+  exit 1
+}
+
+echo "[7/8] manual order cancel"
+manual_cancel_before_on_hand="$(db_query inventory_db "SELECT on_hand_qty::text FROM inventories WHERE product_id = '${PRODUCT_ID}'")"
+manual_cancel_response="$(post_order_response MANUAL 1)"
+manual_cancel_order_id="$(jq -r '.data.id' <<<"${manual_cancel_response}")"
+manual_cancel_status="$(jq -r '.data.status' <<<"${manual_cancel_response}")"
+manual_cancel_payment_id="$(jq -r '.data.payment_id' <<<"${manual_cancel_response}")"
+assert_equals "WAITING_PAYMENT" "${manual_cancel_status}" "status order manual cancel harus waiting payment"
+
+post_order_cancel "${manual_cancel_order_id}" >/dev/null
+
+retry 20 1 manual_order_cancel_is_settled "${manual_cancel_order_id}" "${manual_cancel_payment_id}" "${manual_cancel_before_on_hand}" || {
+  echo "assertion failed: manual order cancel belum settle dalam waktu yang diharapkan" >&2
+  exit 1
+}
+
+echo "[8/8] redis unavailable fallback"
 compose stop redis >/dev/null
 redis_stopped=1
 
@@ -280,4 +437,4 @@ assert_equals "CONFIRMED" "${redis_order_status}" "checkout tetap harus berhasil
 compose start redis >/dev/null
 redis_stopped=0
 
-echo "semua scenario E2E phase 07 berhasil"
+echo "semua scenario E2E berhasil"

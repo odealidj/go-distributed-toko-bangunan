@@ -10,6 +10,7 @@ import (
 
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/application/port"
 	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/domain/model"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/messaging"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -143,6 +144,44 @@ func (o *CheckoutOrchestrator) GetOrder(ctx context.Context, orderID string) (mo
 		return model.Order{}, model.ErrInvalidInput
 	}
 	return o.repository.GetOrder(ctx, orderID)
+}
+
+func (o *CheckoutOrchestrator) ListOrders(ctx context.Context, filter model.OrderFilter) ([]model.Order, int, error) {
+	filter.Status = strings.TrimSpace(strings.ToUpper(filter.Status))
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.PerPage < 1 {
+		filter.PerPage = 10
+	}
+	if filter.PerPage > 100 {
+		filter.PerPage = 100
+	}
+	return o.repository.ListOrders(ctx, filter)
+}
+
+func (o *CheckoutOrchestrator) CancelOrder(ctx context.Context, command model.CancelOrderCommand) (model.Order, error) {
+	command.OrderID = strings.TrimSpace(command.OrderID)
+	command.Reason = strings.TrimSpace(command.Reason)
+	command.CorrelationID = strings.TrimSpace(command.CorrelationID)
+	command.CausationID = strings.TrimSpace(command.CausationID)
+	if command.OrderID == "" {
+		return model.Order{}, model.ErrInvalidInput
+	}
+	if command.Reason == "" {
+		command.Reason = "cancel_requested"
+	}
+	if command.CorrelationID == "" {
+		command.CorrelationID = newID("corr")
+	}
+	if command.CausationID == "" {
+		command.CausationID = command.CorrelationID
+	}
+	return o.repository.CancelOrder(ctx, command)
+}
+
+func (o *CheckoutOrchestrator) ProcessPaymentEvent(ctx context.Context, event messaging.EventEnvelope) (bool, error) {
+	return o.repository.ProcessPaymentEvent(ctx, event)
 }
 
 func (o *CheckoutOrchestrator) rejectOrder(ctx context.Context, orderID, sagaID string, command model.CreateCheckoutCommand, reason string) (model.Order, error) {
