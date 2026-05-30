@@ -58,11 +58,16 @@ wait_app_stack() {
   wait_http_ok "${PAYMENT_READY_URL}"
 }
 
+wait_postgres_ready() {
+  retry 30 2 compose exec -T postgres pg_isready -U toko -d order_db >/dev/null 2>&1
+}
+
 echo "[1/7] reset compose state"
 compose down -v --remove-orphans >/dev/null 2>&1 || true
 
 echo "[2/7] start infra"
 make infra-up COMPOSE="${COMPOSE:-docker compose}"
+wait_postgres_ready
 
 echo "[3/7] migrate database dan buat topic"
 make order-migrate-compose inventory-migrate-compose payment-migrate-compose COMPOSE="${COMPOSE:-docker compose}"

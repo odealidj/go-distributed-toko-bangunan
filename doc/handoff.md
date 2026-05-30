@@ -43,6 +43,7 @@ cek `git log -1 --oneline` pada branch aktif
 Commit sebelumnya yang relevan:
 
 ```text
+5322053 rapikan build lokal
 26bc376 lengkapi flow bisnis
 bac0c11 tambah panduan portfolio
 88715a4 rapikan handoff ci
@@ -218,6 +219,11 @@ Error/status terakhir saat handoff ini diperbarui:
     - jalankan `./bin/order-service`, `./bin/catalog-inventory-service`, `./bin/payment-service`
     - `make test-e2e COMPOSE="podman compose"`
   - hasil terakhir: `semua scenario E2E berhasil`
+- Validasi container penuh terbaru juga sudah lolos:
+  - `JAEGER_UI_PORT=16687 make ci-integration COMPOSE="docker compose"`
+  - perbaikan yang dibutuhkan:
+    - `scripts/ci-integration.sh` kini menunggu PostgreSQL siap menerima koneksi dengan `pg_isready` sebelum migration;
+    - ini menutup race saat startup yang sebelumnya memicu error `database system is shutting down`.
 - Catatan environment lokal terbaru:
   - konflik terbaru bukan lagi di Redis, tetapi di Jaeger host port `16686` karena stack lain aktif di mesin ini;
   - solusi yang sudah diterapkan: host port Compose kini bisa dioverride, misalnya `JAEGER_UI_PORT=16687`;
@@ -244,15 +250,14 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 
 Langkah paling masuk akal berikutnya:
 
-1. Push branch `phase/13-business-completeness`.
-2. Commit dan push follow-up untuk `.dockerignore`, Dockerfile cache layer, dan dokumentasi port override.
-3. Jika ingin validasi berbasis container penuh, jalankan ulang `JAEGER_UI_PORT=16687 make ci-integration COMPOSE="docker compose"`.
-4. Buat Pull Request dari branch phase terakhir ke `main`.
-5. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
-6. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
-7. Ambil screenshot Jaeger trace untuk portfolio.
-8. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
-9. Ambil screenshot GitHub Actions run terbaru yang hijau.
+1. Commit dan push follow-up stabilisasi `scripts/ci-integration.sh`.
+2. Jalankan atau pantau GitHub Actions pada branch `phase/13-business-completeness`.
+3. Buat Pull Request dari branch phase terakhir ke `main`.
+4. Review ulang `README.md` dari sudut pandang recruiter/backend reviewer.
+5. Jalankan demo manual sesuai `doc/demo/demo-script.md` dan `doc/demo/portfolio-showcase.md`.
+6. Ambil screenshot Jaeger trace untuk portfolio.
+7. Ambil screenshot Grafana dashboard dan Kafka UI topic/consumer lag untuk portfolio.
+8. Ambil screenshot GitHub Actions run terbaru yang hijau.
 
 ## 7. Command yang Harus Dijalankan
 
@@ -373,7 +378,7 @@ Sudah terpenuhi:
 
 Perlu diverifikasi di GitHub:
 
-- status CI benar-benar hijau setelah workflow berjalan di remote.
+- status CI branch `phase/13-business-completeness` benar-benar hijau setelah workflow terbaru berjalan di remote.
 
 ## 9. Known Gaps / Roadmap
 
