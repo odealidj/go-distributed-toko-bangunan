@@ -43,6 +43,9 @@ cek `git log -1 --oneline` pada branch aktif
 Commit sebelumnya yang relevan:
 
 ```text
+b521958 tambah anotasi ci
+bd3e03d perkuat retry ci
+3e2f73f stabilkan ci compose
 5322053 rapikan build lokal
 26bc376 lengkapi flow bisnis
 bac0c11 tambah panduan portfolio
@@ -233,6 +236,11 @@ Error/status terakhir saat handoff ini diperbarui:
   - saat settle gagal, script sekarang membuang snapshot state order/payment/inventory dan `compose ps` ke stderr agar log CI lebih informatif;
   - `scripts/ci-integration.sh` juga menambah window tunggu untuk `/readyz` dan `pg_isready`.
   - `scripts/ci-integration.sh` dan `scripts/test-e2e.sh` sekarang juga mengeluarkan GitHub Actions annotation (`::error::`) yang menyebut stage/scenario saat gagal, agar root cause bisa dilihat lewat Check Run API tanpa harus membuka log privat.
+- Status remote terbaru saat ini:
+  - GitHub Actions run `26683514775` untuk commit `bd3e03d` masih gagal di job `integration-e2e`;
+  - follow-up observability/annotation ditambahkan pada commit `b521958 tambah anotasi ci`;
+  - GitHub Actions run `26683645157` untuk commit `b521958` berstatus `completed/success` pada `2026-05-30`;
+  - artinya phase 13 kini sudah lolos validasi lokal dan remote pada branch `phase/13-business-completeness`.
 - Catatan environment lokal terbaru:
   - konflik terbaru bukan lagi di Redis, tetapi di Jaeger host port `16686` karena stack lain aktif di mesin ini;
   - solusi yang sudah diterapkan: host port Compose kini bisa dioverride, misalnya `JAEGER_UI_PORT=16687`;
@@ -259,11 +267,9 @@ Error penting yang pernah ditemukan dan sudah diperbaiki:
 
 Langkah paling masuk akal berikutnya:
 
-1. Commit dan push follow-up hardening `scripts/test-e2e.sh` dan `scripts/ci-integration.sh`.
-2. Jalankan ulang `JAEGER_UI_PORT=16687 make ci-integration COMPOSE="docker compose"` secara lokal.
-3. Pantau GitHub Actions baru pada branch `phase/13-business-completeness`.
-4. Jika CI sudah hijau, lanjut ke review PR dan artefak portfolio.
-5. Jika CI masih merah, ambil log dengan akun GitHub terautentikasi atau unduh artifact `ci-compose-logs` untuk root cause yang lebih presisi.
+1. Review PR branch `phase/13-business-completeness`.
+2. Lanjut ke artefak portfolio: screenshot GitHub Actions hijau, Jaeger, Grafana, dan Kafka UI.
+3. Jika ingin lanjut coding feature baru, buat branch phase berikutnya dari branch ini atau dari `main` setelah PR digabung.
 
 ## 7. Command yang Harus Dijalankan
 
@@ -382,9 +388,9 @@ Sudah terpenuhi:
 - `make kafka-topics` membuat topic utama dan topic DLQ.
 - CI workflow sudah menyiapkan job integration/e2e berbasis stack container.
 
-Perlu diverifikasi di GitHub:
+Sudah terverifikasi di GitHub:
 
-- status CI branch `phase/13-business-completeness` benar-benar hijau setelah workflow terbaru berjalan di remote.
+- status CI branch `phase/13-business-completeness` hijau pada run `26683645157`.
 
 ## 9. Known Gaps / Roadmap
 

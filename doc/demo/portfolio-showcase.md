@@ -85,7 +85,7 @@ https://github.com/odealidj/go-distributed-toko-bangunan/actions
 Capture:
 
 - workflow `ci`;
-- run `26681209486` atau run terbaru yang hijau;
+- run `26683645157` atau run terbaru yang hijau;
 - job `integration-e2e` dan `docker-build`.
 
 Pesan yang ingin disampaikan:

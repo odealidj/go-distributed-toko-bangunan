@@ -569,6 +569,8 @@ Alasan:
 
 ## 18. Phase 13 - Business Completeness
 
+Status: selesai di `phase/13-business-completeness`
+
 Branch:
 
 ```text
@@ -601,3 +603,17 @@ Acceptance criteria:
 - manual payment bisa diselesaikan ke success/failure lewat endpoint demo;
 - `order-service` melanjutkan state order dari `payment.events`;
 - E2E mencakup manual payment success/failure dan cancel order.
+
+Validasi akhir:
+
+```bash
+GOCACHE=/tmp/go-build-cache make test-unit
+GOCACHE=/tmp/go-build-cache make build-all
+JAEGER_UI_PORT=16687 make ci-integration COMPOSE="docker compose"
+```
+
+Status remote referensi:
+
+```text
+GitHub Actions run 26683645157 -> completed/success
+```
