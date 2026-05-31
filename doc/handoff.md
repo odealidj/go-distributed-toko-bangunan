@@ -240,7 +240,8 @@ Error/status terakhir saat handoff ini diperbarui:
   - GitHub Actions run `26683514775` untuk commit `bd3e03d` masih gagal di job `integration-e2e`;
   - follow-up observability/annotation ditambahkan pada commit `b521958 tambah anotasi ci`;
   - GitHub Actions run `26683645157` untuk commit `b521958` berstatus `completed/success` pada `2026-05-30`;
-  - artinya phase 13 kini sudah lolos validasi lokal dan remote pada branch `phase/13-business-completeness`.
+  - GitHub Actions run `26710619771` untuk commit `bfb6187` berstatus `completed/success` pada `2026-05-31`;
+  - artinya phase 13 kini sudah lolos validasi lokal, validasi remote bisnis, dan status branch terbaru juga hijau.
 - Catatan environment lokal terbaru:
   - konflik terbaru bukan lagi di Redis, tetapi di Jaeger host port `16686` karena stack lain aktif di mesin ini;
   - solusi yang sudah diterapkan: host port Compose kini bisa dioverride, misalnya `JAEGER_UI_PORT=16687`;
@@ -390,7 +391,7 @@ Sudah terpenuhi:
 
 Sudah terverifikasi di GitHub:
 
-- status CI branch `phase/13-business-completeness` hijau pada run `26683645157`.
+- status CI branch `phase/13-business-completeness` hijau pada run `26683645157`, dan status branch terbaru juga hijau pada run `26710619771`.
 
 ## 9. Known Gaps / Roadmap
 

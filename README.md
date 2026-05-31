@@ -198,8 +198,10 @@ Run yang sudah membuktikan phase CI ini hijau:
 
 - `26681168668` untuk `5ff6881`
 - `26681209486` untuk `45e4571`
+- `26683645157` untuk `b521958` sebagai validasi hijau phase 13
+- `26710619771` untuk `bfb6187` sebagai status branch terbaru yang hijau
 
-Keduanya menjalankan job `test-build`, `integration-e2e`, dan matrix `docker-build`.
+Run-run tersebut menjalankan job `test-build`, `integration-e2e`, dan matrix `docker-build`.
 
 ## Struktur Penting
 
