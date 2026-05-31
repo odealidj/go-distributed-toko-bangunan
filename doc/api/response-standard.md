@@ -33,6 +33,21 @@ Aturan:
 - `data` berisi response payload.
 - `meta` wajib ada.
 - `error` tidak boleh ada.
+- Payload di `data` harus berasal dari DTO/response struct eksplisit pada adapter REST.
+- Hindari `map[string]any` untuk response domain atau response operasional seperti health/readiness, kecuali payload benar-benar dinamis dan alasan teknisnya terdokumentasi.
+
+Contoh DTO:
+
+```go
+type PaymentResponse struct {
+	ID             string `json:"id"`
+	OrderID        string `json:"order_id"`
+	Amount         int64  `json:"amount"`
+	Status         string `json:"status"`
+	PaymentMode    string `json:"payment_mode"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+```
 
 ## 3. Success Response: List Dengan Pagination
 

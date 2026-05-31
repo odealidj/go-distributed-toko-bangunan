@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: toko-bangunan
+    orgId: 1
+    folder: Toko Bangunan
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

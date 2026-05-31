@@ -102,6 +102,15 @@ Command target:
 make test-integration
 ```
 
+Implementasi command line saat ini:
+
+```text
+make test-unit
+make test-integration
+make test-e2e
+make ci-integration COMPOSE="docker compose"
+```
+
 Aturan:
 
 - setiap test harus menyiapkan data sendiri;
@@ -144,6 +153,7 @@ Aturan:
 - Manual offset commit hanya terjadi setelah local transaction sukses.
 - Duplicate event dengan `event_id` sama tidak memicu business mutation kedua.
 - Poison event masuk DLQ setelah retry limit.
+- Handler error retry dengan backoff lalu masuk DLQ setelah limit.
 
 ### gRPC integration
 
@@ -291,6 +301,26 @@ Hasil yang diharapkan:
 - Order read fallback ke PostgreSQL.
 - Checkout success/failure behavior tetap benar.
 - Durable idempotency tetap berjalan melalui database table.
+
+Script otomatis untuk scenario E2E phase ini:
+
+```text
+scripts/test-e2e.sh
+```
+
+Script menjalankan delapan skenario berurutan:
+
+1. checkout success;
+2. insufficient stock;
+3. payment failed compensation;
+4. duplicate `OrderConfirmed` event;
+5. manual payment success;
+6. manual payment failed;
+7. manual order cancel;
+8. Redis unavailable fallback.
+
+Sebelum skenario dijalankan, script menunggu `/readyz` dari `order-service`, `catalog-inventory-service`, dan `payment-service`.
+Untuk bagian async Kafka, script memakai polling berbatas waktu, bukan `sleep` statis, agar lebih stabil di CI runner yang lebih lambat.
 
 ## 9. Test Pyramid
 

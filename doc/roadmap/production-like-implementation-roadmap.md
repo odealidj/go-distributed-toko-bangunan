@@ -238,7 +238,7 @@ Cakupan:
 - K6 smoke/load/stress/spike test.
 - Custom metric checkout terminal duration.
 - Prometheus dan Grafana untuk metrics dashboard.
-- cAdvisor untuk container CPU/RAM/network/block I/O.
+- node-exporter untuk host CPU/RAM/filesystem/network metrics.
 - postgres-exporter untuk PostgreSQL metrics.
 - kafka-exporter untuk Kafka consumer lag/topic metrics.
 - redis-exporter untuk Redis metrics jika cache sudah aktif.

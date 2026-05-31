@@ -239,9 +239,32 @@ make perf-soak
 Contoh env:
 
 ```text
-K6_BASE_URL=http://localhost:8080
+K6_ORDER_BASE_URL=http://127.0.0.1:8080
+K6_CATALOG_BASE_URL=http://127.0.0.1:8081
 K6_CUSTOMER_TOKEN=<jwt>
 K6_ADMIN_TOKEN=<jwt>
+```
+
+Implementasi project saat ini menggunakan runner container:
+
+```text
+make perf-smoke
+make perf-load
+make perf-stress
+make perf-spike
+make perf-soak
+```
+
+Default runtime:
+
+```text
+CONTAINER=podman
+```
+
+Jika ingin memakai Docker:
+
+```text
+make perf-smoke CONTAINER=docker
 ```
 
 ## 11. Output
@@ -290,3 +313,20 @@ Performance test dianggap siap untuk portfolio jika:
 - outbox pending naik sementara lalu turun kembali;
 - Kafka consumer lag tidak terus meningkat tanpa recovery.
 
+## 14. Status Implementasi Saat Ini
+
+Yang sudah tersedia:
+
+- folder `tests/performance/k6/`;
+- smoke/load/stress/spike/soak scenario dasar;
+- custom metric `checkout_terminal_duration`;
+- scenario browse product, checkout success, payment failed, dan mixed checkout;
+- seed data load test:
+  - `prod_load_semen`
+  - `prod_load_low_stock`
+
+Yang masih roadmap:
+
+- export hasil K6 ke Prometheus remote write;
+- dashboard Grafana khusus K6;
+- assertion resource metrics otomatis selama load test.

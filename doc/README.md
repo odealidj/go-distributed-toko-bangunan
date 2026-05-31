@@ -10,10 +10,12 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Panduan Go Hexagonal Architecture](implementation/go-hexagonal-architecture.md)
 - [Keputusan Teknologi](implementation/technology-decisions.md)
 - [Struktur Repository](implementation/repository-structure.md)
+- [Phase Implementasi](implementation/implementation-phases.md)
 - [Strategi Redis Cache](cache/redis-cache.md)
 - [Tracing, OpenTelemetry, dan Kafka Idempotency](observability/tracing-and-idempotency.md)
 - [Metrics dan Resource Dashboard](observability/metrics-dashboard.md)
 - [Roadmap Implementasi Production-Like](roadmap/production-like-implementation-roadmap.md)
+- [Handoff Project](handoff.md)
 - [Architecture Decision Records](adr/README.md)
 
 ## Spesifikasi Machine-Readable
@@ -42,6 +44,7 @@ Folder ini berisi spesifikasi produk dan teknis untuk demo microservices Mini To
 - [Strategi Testing](testing/testing-strategy.md)
 - [Performance Testing dengan K6](testing/performance-testing-k6.md)
 - [Demo Script](demo/demo-script.md)
+- [Panduan Showcase Portfolio](demo/portfolio-showcase.md)
 - [Panduan Implementasi AI](prompts/implementation-guide.md)
 
 ## Cara Penggunaan

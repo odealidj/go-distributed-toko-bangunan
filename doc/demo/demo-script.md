@@ -165,7 +165,85 @@ No double stock release
 No incorrect stock quantity
 ```
 
-## 8. Urutan Presentasi yang Disarankan
+## 8. Scenario E: Manual Payment Succeeded
+
+Action:
+
+- Buat order dengan `payment_mode = MANUAL`.
+- Setelah order berada di `WAITING_PAYMENT`, panggil:
+
+```text
+POST /demo/payments/{payment_id}/succeed
+```
+
+Talking point yang diharapkan:
+
+- Payment awalnya `PENDING`.
+- Payment service mempublish `PaymentSucceeded`.
+- Order service mengonsumsi `payment.events`.
+- Order menjadi `CONFIRMED` dan mempublish `OrderConfirmed`.
+- Inventory mengonsumsi `OrderConfirmed` dan melakukan commit stock.
+
+Final state:
+
+```text
+Order: CONFIRMED
+Payment: SUCCEEDED
+Reservation: COMMITTED
+```
+
+## 9. Scenario F: Manual Payment Failed
+
+Action:
+
+- Buat order dengan `payment_mode = MANUAL`.
+- Setelah order berada di `WAITING_PAYMENT`, panggil:
+
+```text
+POST /demo/payments/{payment_id}/fail
+```
+
+Talking point yang diharapkan:
+
+- Payment service mempublish `PaymentFailed`.
+- Order service mengonsumsi event itu dan mempublish `OrderCancelled`.
+- Inventory mengonsumsi `OrderCancelled` dan me-release reservation.
+
+Final state:
+
+```text
+Order: CANCELLED
+Payment: FAILED
+Reservation: RELEASED
+```
+
+## 10. Scenario G: Cancel Order Saat Menunggu Payment
+
+Action:
+
+- Buat order dengan `payment_mode = MANUAL`.
+- Saat status order `WAITING_PAYMENT`, panggil:
+
+```text
+POST /orders/{order_id}/cancel
+```
+
+Talking point yang diharapkan:
+
+- Order dibatalkan dari sisi `order-service`.
+- `OrderCancelled` dipublish ke Kafka.
+- Payment service membatalkan payment pending secara idempotent.
+- Inventory me-release reservation.
+
+Final state:
+
+```text
+Order: CANCELLED
+Payment: CANCELLED
+Reservation: RELEASED
+```
+
+## 11. Urutan Presentasi yang Disarankan
 
 1. Tunjukkan architecture diagram.
 2. Tunjukkan service boundary.
@@ -176,5 +254,13 @@ No incorrect stock quantity
 7. Jalankan success scenario.
 8. Jalankan insufficient stock scenario.
 9. Jalankan payment failed compensation scenario.
-10. Jalankan duplicate event/idempotency scenario.
-11. Tutup dengan future extraction path untuk dedicated orchestrator.
+10. Jalankan manual payment success/failure scenario.
+11. Jalankan cancel order scenario.
+12. Jalankan duplicate event/idempotency scenario.
+13. Tutup dengan future extraction path untuk dedicated orchestrator.
+
+Untuk menjalankan rangkaian scenario otomatis dari command line:
+
+```text
+make test-e2e
+```

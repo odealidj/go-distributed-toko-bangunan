@@ -20,8 +20,9 @@ otel-collector
 jaeger
 prometheus
 grafana
-cAdvisor
+node-exporter
 postgres-exporter
+redis-exporter
 kafka-exporter
 ```
 
@@ -76,10 +77,17 @@ flowchart LR
 | OTEL Collector gRPC | `4317` | `4317` | OTLP gRPC |
 | OTEL Collector HTTP | `4318` | `4318` | OTLP HTTP |
 | Jaeger UI | `16686` | `16686` | Trace viewer |
+| Prometheus | `9090` | `9090` | Metrics query |
+| Grafana | `3000` | `3000` | Metrics dashboard |
+| node-exporter | `9100` | `9100` | Host/resource metrics |
+| postgres-exporter | `9187` | `9187` | PostgreSQL metrics |
+| redis-exporter | `9121` | `9121` | Redis metrics |
+| kafka-exporter | `9308` | `9308` | Kafka metrics |
 
 Catatan:
 
-- Jika port `8080` bentrok antara Kafka UI dan order-service, Kafka UI harus dipublish ke `8090`.
+- Kafka UI dipublish ke host `8090` agar tidak bentrok dengan `order-service`.
+- Host port pada `docker-compose.yml` bisa dioverride via environment variable, misalnya `JAEGER_UI_PORT=16687 make infra-up`.
 - Service Go di dalam container menggunakan `kafka:9092`.
 - Tool dari host menggunakan `localhost:29092`.
 
@@ -136,6 +144,8 @@ Readiness harus mengecek:
 - Kafka producer/consumer readiness jika berlaku;
 - Redis connection sebagai warning/non-critical;
 - gRPC downstream untuk `order-service`.
+
+`/healthz` cukup untuk liveness proses. `/readyz` harus mengembalikan `503` sampai dependency inti service benar-benar siap.
 
 ## 8. Makefile Target
 

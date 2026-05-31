@@ -1,0 +1,109 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - 'phase/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            */go.sum
+            */*/go.sum
+            go.work.sum
+
+      - name: Setup protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Verify proto contracts
+        run: make proto-validate
+
+      - name: Run unit tests
+        run: make test-unit
+
+      - name: Build all services
+        run: make build-all
+
+  integration-e2e:
+    runs-on: ubuntu-latest
+    needs: test-build
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache-dependency-path: |
+            */go.sum
+            */*/go.sum
+            go.work.sum
+
+      - name: Run integration and e2e stack
+        env:
+          COMPOSE: docker compose
+          CI_INTEGRATION_AUTO_CLEANUP: '0'
+        run: make ci-integration
+
+      - name: Compose status on failure
+        if: failure()
+        run: docker compose --profile app ps
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose --profile app logs --no-color > ci-compose.log || true
+
+      - name: Upload compose logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-compose-logs
+          path: ci-compose.log
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  docker-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service_name: order-service
+            service_path: services/order-service
+          - service_name: catalog-inventory-service
+            service_path: services/catalog-inventory-service
+          - service_name: payment-service
+            service_path: services/payment-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build container image
+        run: |
+          docker build \
+            --file deployments/docker/service.Dockerfile \
+            --build-arg SERVICE_PATH=${{ matrix.service_path }} \
+            --tag ${{ matrix.service_name }}:ci .

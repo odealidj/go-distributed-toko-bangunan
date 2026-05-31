@@ -87,10 +87,10 @@ Produk demo yang direkomendasikan:
 
 | Product ID | Name | Unit | Price | On Hand |
 | --- | --- | --- | --- | --- |
-| `prod_semen_50kg` | Semen Tiga Roda 50kg | sak | 68000 | 20 |
-| `prod_besi_10mm` | Besi Beton 10mm SNI | batang | 72000 | 15 |
-| `prod_pasir_m3` | Pasir Bangka | m3 | 350000 | 5 |
-| `prod_cat_5kg` | Cat Tembok Putih 5kg | pail | 145000 | 10 |
+| `prod_semen_50kg` | Semen Portland 50kg | sak | 68000 | 120 |
+| `prod_besi_10mm` | Besi Beton 10mm | batang | 72000 | 80 |
+| `prod_pasir_1m3` | Pasir Beton 1m3 | m3 | 310000 | 12 |
+| `prod_cat_putih_5kg` | Cat Tembok Putih 5kg | pail | 145000 | 45 |
 
 ## 5. Urutan Startup
 
@@ -121,6 +121,11 @@ Readiness harus memverifikasi dependency yang dibutuhkan:
 - Kafka producer/consumer readiness jika berlaku.
 - gRPC downstream yang dibutuhkan untuk `order-service`.
 - OpenTelemetry exporter misconfiguration harus dilog, tetapi tidak boleh memblokir core business flow dalam demo mode.
+
+Catatan:
+
+- `/healthz` dipakai sebagai liveness ringan.
+- `/readyz` harus dipakai untuk gating startup script, CI, dan E2E; response `503` berarti dependency inti belum siap.
 
 ## 7. Catatan Docker Compose
 
@@ -155,12 +160,42 @@ make infra-up COMPOSE="docker compose"
 make up COMPOSE="docker compose"
 ```
 
+Jika host port tertentu bentrok dengan stack lain, override port yang dibutuhkan saat menjalankan Compose:
+
+```text
+JAEGER_UI_PORT=16687 make infra-up
+JAEGER_UI_PORT=16687 ORDER_READY_URL=http://localhost:8080/readyz CATALOG_READY_URL=http://localhost:8081/readyz PAYMENT_READY_URL=http://localhost:8082/readyz make ci-integration
+```
+
+Host port yang bisa dioverride antara lain:
+
+```text
+POSTGRES_PORT
+REDIS_PORT
+KAFKA_EXTERNAL_PORT
+KAFKA_UI_PORT
+OTEL_GRPC_PORT
+OTEL_HTTP_PORT
+JAEGER_UI_PORT
+JAEGER_COLLECTOR_PORT
+ORDER_HTTP_PORT
+CATALOG_HTTP_PORT
+PAYMENT_HTTP_PORT
+PROMETHEUS_PORT
+GRAFANA_PORT
+NODE_EXPORTER_PORT
+POSTGRES_EXPORTER_PORT
+REDIS_EXPORTER_PORT
+KAFKA_EXPORTER_PORT
+```
+
 ## 8. Workflow Debug Lokal
 
 Untuk debug service dari IDE/local terminal:
 
 ```text
 make infra-up
+make kafka-topics
 make inventory-run
 make payment-run
 make order-run
@@ -179,3 +214,101 @@ prometheus/grafana jika profile observability aktif
 ```
 
 Service aplikasi dapat dijalankan terpisah agar breakpoint/debugger lebih mudah digunakan.
+
+## 9. Verifikasi Trace Demo
+
+Setelah semua service jalan dan seed data sudah masuk:
+
+```text
+make trace-verify
+```
+
+Target ini akan:
+
+1. melakukan checkout demo ke `order-service`;
+2. menunggu trace dikirim ke Jaeger;
+3. mencari trace berdasarkan `correlation_id`;
+4. memverifikasi minimal ada `order-service`, `catalog-inventory-service`, dan `payment-service` di trace yang sama.
+
+Script yang dipakai:
+
+```text
+scripts/verify-trace.sh
+```
+
+## 10. Verifikasi Failure Scenario
+
+Setelah `infra` dan profile `app` aktif:
+
+```text
+make test-integration
+make test-e2e
+```
+
+`make test-e2e` memverifikasi:
+
+- checkout success;
+- insufficient stock;
+- payment failed compensation;
+- duplicate Kafka event idempotency;
+- fallback saat Redis tidak tersedia.
+
+## 11. Performance Smoke dan Load Test
+
+Seed data load test:
+
+```text
+make perf-seed
+```
+
+Jalankan K6 smoke:
+
+```text
+make perf-smoke
+```
+
+Jalankan K6 load:
+
+```text
+make perf-load
+```
+
+Default runner memakai container runtime lokal:
+
+```text
+CONTAINER=podman
+```
+
+## 12. Metrics Dashboard Lokal
+
+Jalankan app dan metrics stack:
+
+```text
+make metrics-up
+```
+
+Endpoint:
+
+```text
+Prometheus: http://localhost:9090
+Grafana: http://localhost:3000
+Node exporter: http://localhost:9100/metrics
+```
+
+Grafana login:
+
+```text
+admin / admin
+```
+
+Dashboard awal:
+
+```text
+Toko Bangunan Overview
+```
+
+Untuk menghentikan metrics stack:
+
+```text
+make metrics-down
+```

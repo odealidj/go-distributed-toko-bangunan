@@ -5,6 +5,7 @@ import (
 	"time"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/odealidj/go-distributed-toko-bangunan/shared/observability"
 )
 
 type Meta struct {
@@ -14,9 +15,10 @@ type Meta struct {
 }
 
 type Success struct {
-	OK   bool `json:"success"`
-	Data any  `json:"data"`
-	Meta Meta `json:"meta"`
+	OK         bool        `json:"success"`
+	Data       any         `json:"data"`
+	Meta       Meta        `json:"meta"`
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
 type ErrorBody struct {
@@ -31,12 +33,56 @@ type Error struct {
 	Meta  Meta      `json:"meta"`
 }
 
+type Pagination struct {
+	Page       int  `json:"page"`
+	PerPage    int  `json:"per_page"`
+	TotalItems int  `json:"total_items"`
+	TotalPages int  `json:"total_pages"`
+	HasNext    bool `json:"has_next"`
+	HasPrev    bool `json:"has_prev"`
+}
+
 func JSON(ctx khttp.Context, status int, data any) error {
 	return ctx.JSON(status, Success{
 		OK:   true,
 		Data: data,
 		Meta: meta(ctx),
 	})
+}
+
+func JSONPage(ctx khttp.Context, status int, data any, pagination Pagination) error {
+	return ctx.JSON(status, Success{
+		OK:         true,
+		Data:       data,
+		Meta:       meta(ctx),
+		Pagination: &pagination,
+	})
+}
+
+func NewPagination(page, perPage, totalItems int) Pagination {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 10
+	}
+	if totalItems < 0 {
+		totalItems = 0
+	}
+
+	totalPages := 0
+	if totalItems > 0 {
+		totalPages = (totalItems + perPage - 1) / perPage
+	}
+
+	return Pagination{
+		Page:       page,
+		PerPage:    perPage,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		HasNext:    totalPages > 0 && page < totalPages,
+		HasPrev:    page > 1 && totalPages > 0,
+	}
 }
 
 func JSONError(ctx khttp.Context, status int, code, message string) error {
@@ -52,13 +98,13 @@ func JSONError(ctx khttp.Context, status int, code, message string) error {
 
 func meta(ctx khttp.Context) Meta {
 	req := ctx.Request()
-	requestID := req.Header.Get("X-Request-Id")
+	requestID := req.Header.Get(observability.HeaderRequestID)
 	if requestID == "" {
-		requestID = req.Header.Get("X-Request-ID")
+		requestID = req.Header.Get(observability.HeaderRequestIDAlt)
 	}
-	correlationID := req.Header.Get("X-Correlation-Id")
+	correlationID := req.Header.Get(observability.HeaderCorrelationID)
 	if correlationID == "" {
-		correlationID = req.Header.Get("X-Correlation-ID")
+		correlationID = req.Header.Get(observability.HeaderCorrelationAlt)
 	}
 	if requestID == "" {
 		requestID = "local-request"

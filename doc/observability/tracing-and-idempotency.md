@@ -256,6 +256,15 @@ Jangan log:
 - full access token
 - internal stack trace pada client response
 
+Implementasi local saat ini:
+
+- semua service menginisialisasi OpenTelemetry tracer provider ke OTLP gRPC endpoint dari `OTEL_EXPORTER_OTLP_ENDPOINT`;
+- logger default menggunakan `slog` JSON handler yang otomatis menambahkan `service`, `request_id`, `correlation_id`, `trace_id`, dan `span_id` dari `context.Context`;
+- Kafka producer menginjeksi `traceparent` melalui OpenTelemetry propagator ke header record;
+- Kafka consumer mengekstrak trace context dari header lalu membuat span `Kafka consume ...`;
+- `order-service` menyimpan `traceparent` ke `outbox_events` agar publish async tetap berada dalam trace yang sama;
+- `catalog-inventory-service` dan `payment-service` memproses event Kafka dengan `slog.InfoContext(...)` agar log terikat ke trace dan correlation yang aktif.
+
 ## 12. Metrics
 
 Metric yang direkomendasikan:

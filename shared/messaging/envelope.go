@@ -11,5 +11,6 @@ type EventEnvelope struct {
 	CorrelationID string    `json:"correlation_id"`
 	CausationID   string    `json:"causation_id,omitempty"`
 	TraceID       string    `json:"trace_id,omitempty"`
+	Traceparent   string    `json:"-"`
 	Payload       any       `json:"payload"`
 }

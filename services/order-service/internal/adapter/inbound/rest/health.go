@@ -4,35 +4,66 @@ import (
 	"net/http"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/odealidj/go-distributed-toko-bangunan/services/order-service/internal/application/usecase"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/config"
 	"github.com/odealidj/go-distributed-toko-bangunan/shared/response"
 )
 
-func RegisterRoutes(server *khttp.Server, cfg config.ServiceConfig) {
+func RegisterRoutes(server *khttp.Server, cfg config.ServiceConfig, order *usecase.OrderUseCase) {
 	router := server.Route("/")
 	router.GET("/healthz", healthHandler(cfg))
-	router.GET("/readyz", readyHandler(cfg))
+	router.GET("/readyz", readyHandler(cfg, order))
+	router.POST("/orders", createOrderHandler(order))
+	router.GET("/orders", listOrdersHandler(order))
+	router.GET("/orders/{id}", getOrderHandler(order))
+	router.POST("/orders/{id}/cancel", cancelOrderHandler(order))
 }
 
 func healthHandler(cfg config.ServiceConfig) khttp.HandlerFunc {
 	return func(ctx khttp.Context) error {
-		return response.JSON(ctx, http.StatusOK, map[string]any{
-			"service": cfg.ServiceName,
-			"status":  "ok",
+		return response.JSON(ctx, http.StatusOK, healthResponse{
+			Service: cfg.ServiceName,
+			Status:  "ok",
 		})
 	}
 }
 
-func readyHandler(cfg config.ServiceConfig) khttp.HandlerFunc {
+func readyHandler(cfg config.ServiceConfig, order *usecase.OrderUseCase) khttp.HandlerFunc {
 	return func(ctx khttp.Context) error {
-		return response.JSON(ctx, http.StatusOK, map[string]any{
-			"service": cfg.ServiceName,
-			"status":  "ready",
-			"checks": map[string]string{
-				"database": "not_configured",
-				"kafka":    "not_configured",
-				"redis":    "not_configured",
+		databaseStatus := "ok"
+		statusCode := http.StatusOK
+		status := "ready"
+		if err := order.Ping(ctx); err != nil {
+			databaseStatus = "unavailable"
+			statusCode = http.StatusServiceUnavailable
+			status = "not_ready"
+		}
+
+		return response.JSON(ctx, statusCode, readinessResponse{
+			Service: cfg.ServiceName,
+			Status:  status,
+			Checks: readinessChecks{
+				Database: databaseStatus,
+				Kafka:    "not_configured",
+				Redis:    "not_configured",
 			},
 		})
 	}
+}
+
+type healthResponse struct {
+	Service string `json:"service"`
+	Status  string `json:"status"`
+}
+
+type readinessResponse struct {
+	Service string          `json:"service"`
+	Status  string          `json:"status"`
+	Checks  readinessChecks `json:"checks"`
+}
+
+type readinessChecks struct {
+	Database string `json:"database"`
+	Kafka    string `json:"kafka"`
+	Redis    string `json:"redis"`
 }

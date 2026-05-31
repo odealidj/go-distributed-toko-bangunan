@@ -8,4 +8,8 @@ sql:
         package: "sqlc"
         out: "internal/adapter/outbound/postgres/sqlc"
         sql_package: "pgx/v5"
-
+        overrides:
+          - db_type: "numeric"
+            go_type: "float64"
+          - db_type: "pg_catalog.numeric"
+            go_type: "float64"
